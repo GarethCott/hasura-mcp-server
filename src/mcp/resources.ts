@@ -20,32 +20,32 @@ export class ResourceManager {
         uri: 'hasura://config',
         name: 'Hasura Configuration',
         description: 'Current Hasura project configuration',
-        mimeType: 'application/yaml'
+        mimeType: 'application/yaml',
       },
       {
         uri: 'hasura://metadata',
         name: 'Hasura Metadata',
         description: 'Complete Hasura metadata including tables, relationships, and permissions',
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       },
       {
         uri: 'hasura://migrations',
         name: 'Hasura Migrations',
         description: 'All migration files in the project',
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       },
       {
         uri: 'hasura://schema',
         name: 'Database Schema',
         description: 'Current database schema structure',
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       },
       {
         uri: 'hasura://project-info',
         name: 'Project Information',
         description: 'General information about the Hasura project',
-        mimeType: 'application/json'
-      }
+        mimeType: 'application/json',
+      },
     ];
   }
 
@@ -78,7 +78,7 @@ export class ResourceManager {
       const config = await hasuraService.getConfig();
       return {
         content: JSON.stringify(config, null, 2),
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       };
     } catch (error) {
       logger.error('Failed to get config resource', error);
@@ -91,7 +91,7 @@ export class ResourceManager {
       const metadata = await hasuraService.getMetadata();
       return {
         content: JSON.stringify(metadata, null, 2),
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       };
     } catch (error) {
       logger.error('Failed to get metadata resource', error);
@@ -104,7 +104,7 @@ export class ResourceManager {
       const migrations = await hasuraService.getMigrations();
       return {
         content: JSON.stringify(migrations, null, 2),
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       };
     } catch (error) {
       logger.error('Failed to get migrations resource', error);
@@ -126,21 +126,21 @@ export class ResourceManager {
             schema: table?.table?.schema || 'public',
             relationships: {
               object: table?.object_relationships || [],
-              array: table?.array_relationships || []
+              array: table?.array_relationships || [],
             },
             permissions: {
               select: table?.select_permissions || [],
               insert: table?.insert_permissions || [],
               update: table?.update_permissions || [],
-              delete: table?.delete_permissions || []
-            }
-          }))
-        }))
+              delete: table?.delete_permissions || [],
+            },
+          })),
+        })),
       };
 
       return {
         content: JSON.stringify(schema, null, 2),
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       };
     } catch (error) {
       logger.error('Failed to get schema resource', error);
@@ -163,14 +163,14 @@ export class ResourceManager {
         sources: (metadata?.sources || []).map(source => ({
           name: source?.name || 'unknown',
           kind: source?.kind || 'unknown',
-          tableCount: source?.tables?.length || 0
+          tableCount: source?.tables?.length || 0,
         })),
-        lastMigration: migrations && migrations.length > 0 ? migrations[migrations.length - 1] : null
+        lastMigration: migrations && migrations.length > 0 ? migrations[migrations.length - 1] : null,
       };
 
       return {
         content: JSON.stringify(projectInfo, null, 2),
-        mimeType: 'application/json'
+        mimeType: 'application/json',
       };
     } catch (error) {
       logger.error('Failed to get project info resource', error);

@@ -2,13 +2,8 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { hasuraService, sqlGenerator, PostgresService, IntegrationService } from '../services/index.js';
 import { logger } from '../utils/index.js';
 import { 
-  TableDefinition, 
-  TableColumn, 
-  RelationshipDefinition, 
-  PermissionDefinition,
+  TableDefinition,
   CreateTableParams,
-  AddColumnParams,
-  RelationshipParams
 } from '../types/index.js';
 import { config } from '../config/index.js';
 
@@ -49,14 +44,14 @@ export class ToolManager {
                   nullable: { type: 'boolean', description: 'Whether column can be null', default: true },
                   default: { type: 'string', description: 'Default value' },
                   primaryKey: { type: 'boolean', description: 'Whether column is primary key', default: false },
-                  unique: { type: 'boolean', description: 'Whether column has unique constraint', default: false }
+                  unique: { type: 'boolean', description: 'Whether column has unique constraint', default: false },
                 },
-                required: ['name', 'type']
-              }
-            }
+                required: ['name', 'type'],
+              },
+            },
           },
-          required: ['name', 'columns']
-        }
+          required: ['name', 'columns'],
+        },
       },
       {
         name: 'add_column',
@@ -72,13 +67,13 @@ export class ToolManager {
                 name: { type: 'string', description: 'Column name' },
                 type: { type: 'string', description: 'Column data type' },
                 nullable: { type: 'boolean', description: 'Whether column can be null', default: true },
-                default: { type: 'string', description: 'Default value' }
+                default: { type: 'string', description: 'Default value' },
               },
-              required: ['name', 'type']
-            }
+              required: ['name', 'type'],
+            },
           },
-          required: ['tableName', 'column']
-        }
+          required: ['tableName', 'column'],
+        },
       },
       {
         name: 'create_relationship',
@@ -106,20 +101,20 @@ export class ToolManager {
                           type: 'object',
                           properties: {
                             name: { type: 'string' },
-                            schema: { type: 'string' }
-                          }
+                            schema: { type: 'string' },
+                          },
                         },
-                        column_mapping: { type: 'object', description: 'Column mapping object' }
-                      }
-                    }
-                  }
-                }
+                        column_mapping: { type: 'object', description: 'Column mapping object' },
+                      },
+                    },
+                  },
+                },
               },
-              required: ['name', 'type', 'table', 'using']
-            }
+              required: ['name', 'type', 'table', 'using'],
+            },
           },
-          required: ['tableName', 'relationship']
-        }
+          required: ['tableName', 'relationship'],
+        },
       },
       {
         name: 'set_permissions',
@@ -135,15 +130,15 @@ export class ToolManager {
             columns: { 
               oneOf: [
                 { type: 'string', enum: ['*'] },
-                { type: 'array', items: { type: 'string' } }
+                { type: 'array', items: { type: 'string' } },
               ],
-              description: 'Allowed columns (* for all)'
+              description: 'Allowed columns (* for all)',
             },
             check: { type: 'object', description: 'Insert/update check constraint' },
-            set: { type: 'object', description: 'Preset values for insert/update' }
+            set: { type: 'object', description: 'Preset values for insert/update' },
           },
-          required: ['tableName', 'role', 'permission']
-        }
+          required: ['tableName', 'role', 'permission'],
+        },
       },
       {
         name: 'generate_migration',
@@ -153,10 +148,10 @@ export class ToolManager {
           properties: {
             name: { type: 'string', description: 'Migration name' },
             upSql: { type: 'string', description: 'SQL for applying the migration' },
-            downSql: { type: 'string', description: 'SQL for reverting the migration', default: '' }
+            downSql: { type: 'string', description: 'SQL for reverting the migration', default: '' },
           },
-          required: ['name', 'upSql']
-        }
+          required: ['name', 'upSql'],
+        },
       },
       {
         name: 'analyze_schema',
@@ -164,9 +159,9 @@ export class ToolManager {
         inputSchema: {
           type: 'object',
           properties: {
-            schema: { type: 'string', description: 'Database schema to analyze', default: 'public' }
-          }
-        }
+            schema: { type: 'string', description: 'Database schema to analyze', default: 'public' },
+          },
+        },
       },
       {
         name: 'apply_migrations',
@@ -174,9 +169,9 @@ export class ToolManager {
         inputSchema: {
           type: 'object',
           properties: {
-            applyMetadata: { type: 'boolean', description: 'Whether to also apply metadata changes', default: true }
-          }
-        }
+            applyMetadata: { type: 'boolean', description: 'Whether to also apply metadata changes', default: true },
+          },
+        },
       },
       // NEW POSTGRESQL TOOLS
       {
@@ -187,10 +182,10 @@ export class ToolManager {
           properties: {
             sql: { type: 'string', description: 'SQL statement to execute' },
             createMigration: { type: 'boolean', description: 'Whether to create a migration file', default: false },
-            migrationName: { type: 'string', description: 'Name for the migration (required if createMigration is true)' }
+            migrationName: { type: 'string', description: 'Name for the migration (required if createMigration is true)' },
           },
-          required: ['sql']
-        }
+          required: ['sql'],
+        },
       },
       {
         name: 'validate_sql',
@@ -198,10 +193,10 @@ export class ToolManager {
         inputSchema: {
           type: 'object',
           properties: {
-            sql: { type: 'string', description: 'SQL statement to validate' }
+            sql: { type: 'string', description: 'SQL statement to validate' },
           },
-          required: ['sql']
-        }
+          required: ['sql'],
+        },
       },
       {
         name: 'analyze_database_schema',
@@ -210,9 +205,9 @@ export class ToolManager {
           type: 'object',
           properties: {
             includePerformance: { type: 'boolean', description: 'Include performance analysis', default: true },
-            schema: { type: 'string', description: 'Database schema to analyze', default: 'public' }
-          }
-        }
+            schema: { type: 'string', description: 'Database schema to analyze', default: 'public' },
+          },
+        },
       },
       {
         name: 'create_table_live',
@@ -231,16 +226,16 @@ export class ToolManager {
                   nullable: { type: 'boolean', description: 'Whether column can be null', default: true },
                   default: { type: 'string', description: 'Default value' },
                   primaryKey: { type: 'boolean', description: 'Whether column is primary key', default: false },
-                  unique: { type: 'boolean', description: 'Whether column has unique constraint', default: false }
+                  unique: { type: 'boolean', description: 'Whether column has unique constraint', default: false },
                 },
-                required: ['name', 'type']
-              }
+                required: ['name', 'type'],
+              },
             },
             schema: { type: 'string', description: 'Database schema', default: 'public' },
-            executeImmediately: { type: 'boolean', description: 'Execute immediately on database', default: true }
+            executeImmediately: { type: 'boolean', description: 'Execute immediately on database', default: true },
           },
-          required: ['name', 'columns']
-        }
+          required: ['name', 'columns'],
+        },
       },
       {
         name: 'preview_changes',
@@ -248,18 +243,18 @@ export class ToolManager {
         inputSchema: {
           type: 'object',
           properties: {
-            sql: { type: 'string', description: 'SQL statement to preview' }
+            sql: { type: 'string', description: 'SQL statement to preview' },
           },
-          required: ['sql']
-        }
+          required: ['sql'],
+        },
       },
       {
         name: 'test_connection',
         description: 'Test PostgreSQL database connection',
         inputSchema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'sync_schema',
@@ -271,11 +266,11 @@ export class ToolManager {
               type: 'string', 
               enum: ['db_to_hasura', 'hasura_to_db', 'bidirectional'],
               description: 'Synchronization direction',
-              default: 'bidirectional'
+              default: 'bidirectional',
             },
-            schema: { type: 'string', description: 'Database schema to sync', default: 'public' }
-          }
-        }
+            schema: { type: 'string', description: 'Database schema to sync', default: 'public' },
+          },
+        },
       },
       {
         name: 'optimize_database',
@@ -284,10 +279,10 @@ export class ToolManager {
           type: 'object',
           properties: {
             autoApply: { type: 'boolean', description: 'Automatically apply high-priority suggestions', default: false },
-            schema: { type: 'string', description: 'Database schema to optimize', default: 'public' }
-          }
-        }
-      }
+            schema: { type: 'string', description: 'Database schema to optimize', default: 'public' },
+          },
+        },
+      },
     ];
   }
 
@@ -351,7 +346,7 @@ export class ToolManager {
       const table: TableDefinition = {
         name: args.name,
         schema: args.schema || 'public',
-        columns: args.columns
+        columns: args.columns,
       };
 
       // Generate SQL
@@ -368,7 +363,7 @@ export class ToolManager {
       const migrationName = await hasuraService.createMigration(
         `create_table_${table.name}`,
         upSql,
-        downSql
+        downSql,
       );
 
       // Create metadata
@@ -376,8 +371,8 @@ export class ToolManager {
         table: { name: table.name, schema: table.schema },
         configuration: {
           custom_root_fields: {},
-          custom_column_names: {}
-        }
+          custom_column_names: {},
+        },
       };
 
       await hasuraService.updateTableMetadata(table.name, table.schema || 'public', metadata);
@@ -386,7 +381,7 @@ export class ToolManager {
         success: true,
         message: `Table ${table.schema}.${table.name} created successfully`,
         migrationName,
-        sql: upSql
+        sql: upSql,
       };
     } catch (error) {
       logger.error('Failed to create table', error);
@@ -412,14 +407,14 @@ export class ToolManager {
       const migrationName = await hasuraService.createMigration(
         `add_column_${tableName}_${column.name}`,
         upSql,
-        downSql
+        downSql,
       );
 
       return {
         success: true,
         message: `Column ${column.name} added to ${schema}.${tableName}`,
         migrationName,
-        sql: upSql
+        sql: upSql,
       };
     } catch (error) {
       logger.error('Failed to add column', error);
@@ -443,19 +438,19 @@ export class ToolManager {
            relationship.table,
            'id', // Assuming 'id' as the referenced column
            schema,
-           targetSchema
+           targetSchema,
          );
         downSql = sqlGenerator.generateDropForeignKeySql(
           tableName,
           `fk_${tableName}_${relationship.using.foreign_key_constraint_on}`,
-          schema
+          schema,
         );
 
         // Create migration for foreign key
         const migrationName = await hasuraService.createMigration(
           `add_relationship_${tableName}_${relationship.name}`,
           upSql,
-          downSql
+          downSql,
         );
       }
 
@@ -479,7 +474,7 @@ export class ToolManager {
       return {
         success: true,
         message: `Relationship ${relationship.name} created for ${schema}.${tableName}`,
-        relationship
+        relationship,
       };
     } catch (error) {
       logger.error('Failed to create relationship', error);
@@ -510,7 +505,7 @@ export class ToolManager {
         permissionObj.permission = { 
           columns: columns || '*', 
           check: check || {},
-          set: set || {}
+          set: set || {},
         };
         table.insert_permissions = table.insert_permissions || [];
         table.insert_permissions.push(permissionObj);
@@ -519,7 +514,7 @@ export class ToolManager {
           columns: columns || '*', 
           filter: filter || {},
           check: check || {},
-          set: set || {}
+          set: set || {},
         };
         table.update_permissions = table.update_permissions || [];
         table.update_permissions.push(permissionObj);
@@ -534,7 +529,7 @@ export class ToolManager {
       return {
         success: true,
         message: `${permission} permission set for role ${role} on ${schema}.${tableName}`,
-        permission: permissionObj
+        permission: permissionObj,
       };
     } catch (error) {
       logger.error('Failed to set permissions', error);
@@ -560,7 +555,7 @@ export class ToolManager {
         message: `Migration ${migrationName} created successfully`,
         migrationName,
         upSql,
-        downSql
+        downSql,
       };
     } catch (error) {
       logger.error('Failed to generate migration', error);
@@ -594,14 +589,14 @@ export class ToolManager {
           permissionCount: (table.select_permissions?.length || 0) + 
                           (table.insert_permissions?.length || 0) + 
                           (table.update_permissions?.length || 0) + 
-                          (table.delete_permissions?.length || 0)
+                          (table.delete_permissions?.length || 0),
         })),
-        suggestions: this.generateSuggestions(tables)
+        suggestions: this.generateSuggestions(tables),
       };
 
       return {
         success: true,
-        analysis
+        analysis,
       };
     } catch (error) {
       logger.error('Failed to analyze schema', error);
@@ -617,7 +612,7 @@ export class ToolManager {
       !t.select_permissions?.length && 
       !t.insert_permissions?.length && 
       !t.update_permissions?.length && 
-      !t.delete_permissions?.length
+      !t.delete_permissions?.length,
     );
 
     if (tablesWithoutPermissions.length > 0) {
@@ -627,7 +622,7 @@ export class ToolManager {
     // Check for tables without relationships
     const tablesWithoutRelationships = tables.filter(t => 
       (!t.object_relationships || t.object_relationships.length === 0) && 
-      (!t.array_relationships || t.array_relationships.length === 0)
+      (!t.array_relationships || t.array_relationships.length === 0),
     );
 
     if (tablesWithoutRelationships.length > 0) {
@@ -657,7 +652,7 @@ export class ToolManager {
       // Apply migrations
       try {
         const { stdout: migrateOutput } = await execAsync('hasura migrate apply', {
-          cwd: projectPath
+          cwd: projectPath,
         });
         results.push(`Migrations applied: ${migrateOutput.trim()}`);
       } catch (error) {
@@ -668,7 +663,7 @@ export class ToolManager {
       if (applyMetadata) {
         try {
           const { stdout: metadataOutput } = await execAsync('hasura metadata apply', {
-            cwd: projectPath
+            cwd: projectPath,
           });
           results.push(`Metadata applied: ${metadataOutput.trim()}`);
         } catch (error) {
@@ -679,7 +674,7 @@ export class ToolManager {
       return {
         success: true,
         message: 'Migrations and metadata applied successfully',
-        results
+        results,
       };
     } catch (error) {
       logger.error('Failed to apply migrations', error);
@@ -705,7 +700,7 @@ export class ToolManager {
         data: result.data,
         executionTime: result.executionTime,
         migrationCreated: result.migrationCreated,
-        error: result.error
+        error: result.error,
       };
     } catch (error) {
       logger.error('Failed to execute SQL', error);
@@ -723,7 +718,7 @@ export class ToolManager {
         isValid: validation.isValid,
         errors: validation.errors,
         warnings: validation.warnings,
-        message: validation.isValid ? 'SQL is valid' : 'SQL validation failed'
+        message: validation.isValid ? 'SQL is valid' : 'SQL validation failed',
       };
     } catch (error) {
       logger.error('Failed to validate SQL', error);
@@ -747,7 +742,7 @@ export class ToolManager {
 
       // Get detailed table information
       const tableDetails = await Promise.all(
-        tables.map(tableName => this.postgresService.getTableSchema(tableName, schema))
+        tables.map(tableName => this.postgresService.getTableSchema(tableName, schema)),
       );
 
       const analysis = {
@@ -761,14 +756,14 @@ export class ToolManager {
           totalTables: tables.length,
           totalRelationships: relationships.length,
           totalIndexes: indexes.length,
-          tablesWithoutPrimaryKey: tableDetails.filter(t => !t.columns.some(c => c.primaryKey)).length
-        }
+          tablesWithoutPrimaryKey: tableDetails.filter(t => !t.columns.some(c => c.primaryKey)).length,
+        },
       };
 
       return {
         success: true,
         analysis,
-        message: `Schema analysis completed for ${schema}`
+        message: `Schema analysis completed for ${schema}`,
       };
     } catch (error) {
       logger.error('Failed to analyze database schema', error);
@@ -784,7 +779,7 @@ export class ToolManager {
         name,
         columns,
         schema,
-        executeImmediately
+        executeImmediately,
       };
 
       const result = await this.integrationService.createTableWithMigration(params);
@@ -796,7 +791,7 @@ export class ToolManager {
         migrationCreated: result.migrationCreated,
         metadataUpdated: result.metadataUpdated,
         preview: result.preview,
-        error: result.error
+        error: result.error,
       };
     } catch (error) {
       logger.error('Failed to create table live', error);
@@ -812,7 +807,7 @@ export class ToolManager {
       return {
         success: true,
         preview,
-        message: 'Change preview generated successfully'
+        message: 'Change preview generated successfully',
       };
     } catch (error) {
       logger.error('Failed to preview changes', error);
@@ -827,14 +822,14 @@ export class ToolManager {
       return {
         success: true,
         connected: isConnected,
-        message: isConnected ? 'Database connection successful' : 'Database connection failed'
+        message: isConnected ? 'Database connection successful' : 'Database connection failed',
       };
     } catch (error) {
       logger.error('Failed to test connection', error);
       return {
         success: false,
         connected: false,
-        message: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
@@ -853,7 +848,7 @@ export class ToolManager {
         direction,
         schema,
         consistency,
-        note: 'This is a basic implementation. Full sync functionality would require more complex logic.'
+        note: 'This is a basic implementation. Full sync functionality would require more complex logic.',
       };
     } catch (error) {
       logger.error('Failed to sync schema', error);
@@ -875,8 +870,8 @@ export class ToolManager {
         failed: optimization.failed,
         summary: {
           appliedCount: optimization.applied.length,
-          failedCount: optimization.failed.length
-        }
+          failedCount: optimization.failed.length,
+        },
       };
     } catch (error) {
       logger.error('Failed to optimize database', error);

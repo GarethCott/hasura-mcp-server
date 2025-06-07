@@ -14,7 +14,14 @@
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "prepare": "npm run build",
     "watch": "tsc --watch",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "lint:check": "eslint src/**/*.ts --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "quality": "npm run type-check && npm run lint:check",
+    "precommit": "npm run quality",
+    "format": "npm run lint:fix && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "0.6.0",
@@ -25,8 +32,15 @@
     "pg": "^8.11.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.28.0",
     "@types/node": "^20.11.24",
+    "@types/pg": "^8.11.2",
+    "@typescript-eslint/eslint-plugin": "^8.33.1",
+    "@typescript-eslint/parser": "^8.33.1",
+    "eslint": "^9.28.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
     "typescript": "^5.3.3",
-    "@types/pg": "^8.11.2"
+    "typescript-eslint": "^8.33.1"
   }
 }

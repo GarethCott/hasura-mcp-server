@@ -17,23 +17,23 @@ export class Config {
     this.hasura = {
       endpoint: process.env.HASURA_ENDPOINT || 'http://localhost:8080',
       adminSecret: process.env.HASURA_ADMIN_SECRET,
-      projectPath: process.env.HASURA_PROJECT_PATH || process.cwd()
+      projectPath: process.env.HASURA_PROJECT_PATH || process.cwd(),
     };
 
     this.postgres = {
       connectionString: process.env.POSTGRES_CONNECTION_STRING || 'postgresql://localhost:5432/postgres',
       poolSize: parseInt(process.env.POSTGRES_POOL_SIZE || '10'),
       idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '30000'),
-      connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '2000')
+      connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '2000'),
     };
 
     this.server = {
       name: 'Hasura MCP Server',
-      version: '1.0.0'
+      version: '1.0.0',
     };
 
     this.logging = {
-      level: process.env.LOG_LEVEL || 'info'
+      level: process.env.LOG_LEVEL || 'info',
     };
   }
 

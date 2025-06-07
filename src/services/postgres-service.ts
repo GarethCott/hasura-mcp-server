@@ -12,7 +12,7 @@ import {
   ValidationResult,
   QueryPlan,
   TableColumn,
-  ConstraintInfo
+  ConstraintInfo,
 } from '../types/index.js';
 import { logger } from '../utils/index.js';
 
@@ -49,8 +49,8 @@ export class PostgresService {
         rowCount: result.rowCount || 0,
         fields: result.fields.map(field => ({
           name: field.name,
-          dataTypeID: field.dataTypeID
-        }))
+          dataTypeID: field.dataTypeID,
+        })),
       };
     } catch (error) {
       logger.error('Query execution failed:', error);
@@ -69,7 +69,7 @@ export class PostgresService {
         success: true,
         rowsAffected: result.rowCount,
         data: result.rows,
-        executionTime
+        executionTime,
       };
     } catch (error) {
       const executionTime = Date.now() - startTime;
@@ -78,7 +78,7 @@ export class PostgresService {
       return {
         success: false,
         executionTime,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -97,8 +97,8 @@ export class PostgresService {
           rowCount: result.rowCount || 0,
           fields: result.fields.map(field => ({
             name: field.name,
-            dataTypeID: field.dataTypeID
-          }))
+            dataTypeID: field.dataTypeID,
+          })),
         });
       }
       
@@ -111,7 +111,7 @@ export class PostgresService {
       return {
         success: false,
         results: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     } finally {
       client.release();
@@ -153,7 +153,7 @@ export class PostgresService {
       nullable: row.is_nullable === 'YES',
       default: row.column_default,
       primaryKey: row.is_primary_key,
-      unique: row.is_unique
+      unique: row.is_unique,
     }));
 
     const indexes = await this.getTableIndexes(tableName, schema);
@@ -166,7 +166,7 @@ export class PostgresService {
       columns,
       indexes,
       constraints,
-      rowCount
+      rowCount,
     };
   }
 
@@ -203,7 +203,7 @@ export class PostgresService {
       type: 'foreign_key' as const,
       sourceTable: row.source_table,
       targetTable: row.target_table,
-      columns: { [row.source_column]: row.target_column }
+      columns: { [row.source_column]: row.target_column },
     }));
   }
 
@@ -234,7 +234,7 @@ export class PostgresService {
       table: row.table_name,
       columns: row.columns,
       unique: row.is_unique,
-      type: row.index_type
+      type: row.index_type,
     }));
   }
 
@@ -282,7 +282,7 @@ export class PostgresService {
       const [slowQueries, tableStats, connectionStats] = await Promise.all([
         this.query(slowQueriesQuery).catch(() => ({ rows: [] })), // pg_stat_statements might not be available
         this.query(tableStatsQuery),
-        this.query(connectionStatsQuery)
+        this.query(connectionStatsQuery),
       ]);
 
       const connStats = connectionStats.rows.reduce((acc, row) => {
@@ -296,22 +296,22 @@ export class PostgresService {
         slowQueries: slowQueries.rows.map(row => ({
           query: row.query,
           avgTime: row.avg_time,
-          calls: row.calls
+          calls: row.calls,
         })),
         tableStats: tableStats.rows.map(row => ({
           table: row.table_name,
           size: row.size,
           rowCount: row.total_operations,
-          indexUsage: row.index_usage_pct
+          indexUsage: row.index_usage_pct,
         })),
-        connectionStats: connStats
+        connectionStats: connStats,
       };
     } catch (error) {
       logger.error('Performance analysis failed:', error);
       return {
         slowQueries: [],
         tableStats: [],
-        connectionStats: { active: 0, idle: 0, total: 0 }
+        connectionStats: { active: 0, idle: 0, total: 0 },
       };
     }
   }
@@ -322,7 +322,7 @@ export class PostgresService {
       return {
         plan: result.rows[0]['QUERY PLAN'][0],
         executionTime: result.rows[0]['QUERY PLAN'][0]['Execution Time'],
-        cost: result.rows[0]['QUERY PLAN'][0]['Total Cost']
+        cost: result.rows[0]['QUERY PLAN'][0]['Total Cost'],
       };
     } catch (error) {
       logger.error('Query explain failed:', error);
@@ -338,13 +338,13 @@ export class PostgresService {
       return {
         isValid: true,
         errors: [],
-        warnings: []
+        warnings: [],
       };
     } catch (error) {
       return {
         isValid: false,
         errors: [error instanceof Error ? error.message : 'Unknown error'],
-        warnings: []
+        warnings: [],
       };
     }
   }
@@ -387,7 +387,7 @@ export class PostgresService {
       table: tableName,
       columns: row.columns,
       unique: row.is_unique,
-      type: row.index_type
+      type: row.index_type,
     }));
   }
 
@@ -413,7 +413,7 @@ export class PostgresService {
       type: row.constraint_type.toLowerCase().replace(' ', '_') as any,
       columns: row.columns,
       referencedTable: row.referenced_table,
-      referencedColumns: row.referenced_columns
+      referencedColumns: row.referenced_columns,
     }));
   }
 

@@ -23,14 +23,14 @@ export class PromptManager {
           {
             name: 'description',
             description: 'Natural language description of the desired schema',
-            required: true
+            required: true,
           },
           {
             name: 'domain',
             description: 'Application domain (e.g., e-commerce, blog, social media)',
-            required: false
-          }
-        ]
+            required: false,
+          },
+        ],
       },
       {
         name: 'optimize_schema',
@@ -39,9 +39,9 @@ export class PromptManager {
           {
             name: 'focus',
             description: 'Focus area for optimization (performance, relationships, permissions)',
-            required: false
-          }
-        ]
+            required: false,
+          },
+        ],
       },
       {
         name: 'generate_api_schema',
@@ -50,14 +50,14 @@ export class PromptManager {
           {
             name: 'api_type',
             description: 'Type of API (REST, GraphQL, real-time)',
-            required: true
+            required: true,
           },
           {
             name: 'use_case',
             description: 'Primary use case for the API',
-            required: true
-          }
-        ]
+            required: true,
+          },
+        ],
       },
       {
         name: 'migration_strategy',
@@ -66,15 +66,15 @@ export class PromptManager {
           {
             name: 'current_schema',
             description: 'Description of current schema state',
-            required: true
+            required: true,
           },
           {
             name: 'target_schema',
             description: 'Description of desired schema state',
-            required: true
-          }
-        ]
-      }
+            required: true,
+          },
+        ],
+      },
     ];
   }
 
@@ -170,7 +170,7 @@ Permissions:
       permissions: (table.select_permissions?.length || 0) + 
                   (table.insert_permissions?.length || 0) + 
                   (table.update_permissions?.length || 0) + 
-                  (table.delete_permissions?.length || 0)
+                  (table.delete_permissions?.length || 0),
     }));
 
     return `# Schema Optimization Analysis
@@ -182,7 +182,7 @@ ${focus ? `**Focus Area:** ${focus}` : ''}
 
 ## Table Analysis
 ${tableInfo.map(table => 
-  `- **${table.name}** (${table.schema}): ${table.relationships} relationships, ${table.permissions} permissions`
+  `- **${table.name}** (${table.schema}): ${table.relationships} relationships, ${table.permissions} permissions`,
 ).join('\n')}
 
 ## Optimization Areas to Consider

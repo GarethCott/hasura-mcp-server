@@ -45,10 +45,10 @@ export class HasuraService {
           tables,
           configuration: {
             connection_info: {
-              database_url: { from_env: 'HASURA_GRAPHQL_DATABASE_URL' }
-            }
-          }
-        }]
+              database_url: { from_env: 'HASURA_GRAPHQL_DATABASE_URL' },
+            },
+          },
+        }],
       };
     } catch (error) {
       logger.error('Failed to read Hasura metadata', error);
@@ -86,10 +86,10 @@ export class HasuraService {
         tables: [],
         configuration: {
           connection_info: {
-            database_url: { from_env: 'HASURA_GRAPHQL_DATABASE_URL' }
-          }
-        }
-      }]
+            database_url: { from_env: 'HASURA_GRAPHQL_DATABASE_URL' },
+          },
+        },
+      }],
     };
   }
 
@@ -131,7 +131,7 @@ export class HasuraService {
             timestamp,
             name,
             upSql,
-            downSql
+            downSql,
           });
         }
       }
@@ -151,7 +151,7 @@ export class HasuraService {
         config.hasura.projectPath,
         'migrations',
         'default',
-        migrationName
+        migrationName,
       );
 
       await FileSystemUtils.ensureDirectory(migrationPath);
@@ -177,7 +177,7 @@ export class HasuraService {
         'metadata',
         'databases',
         'default',
-        'tables'
+        'tables',
       );
 
       await FileSystemUtils.ensureDirectory(metadataPath);
@@ -188,7 +188,7 @@ export class HasuraService {
       const yamlContent = yaml.dump(metadata, { 
         indent: 2,
         lineWidth: -1,
-        noRefs: true
+        noRefs: true,
       });
 
       await FileSystemUtils.writeFile(filePath, yamlContent);

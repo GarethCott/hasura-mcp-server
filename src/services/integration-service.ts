@@ -10,10 +10,6 @@ import {
   OptimizationReport,
   OptimizationSuggestion,
   SafeExecutionResult,
-  WorkflowResult,
-  ValidationResult,
-  SchemaAnalysis,
-  TableColumn
 } from '../types/index.js';
 import { logger } from '../utils/index.js';
 
@@ -23,7 +19,7 @@ import { HasuraService } from './hasura-service.js';
 export class IntegrationService {
   constructor(
     private hasuraService: HasuraService,
-    private postgresService: PostgresService
+    private postgresService: PostgresService,
   ) {}
 
   // Unified operations that handle both Hasura and PostgreSQL
@@ -65,9 +61,9 @@ export class IntegrationService {
           table: { name: params.name, schema: params.schema || 'public' },
           configuration: {
             custom_root_fields: {},
-            custom_column_names: {}
-          }
-        }
+            custom_column_names: {},
+          },
+        },
       );
       const metadataUpdated = true;
       
@@ -77,14 +73,14 @@ export class IntegrationService {
         executed,
         migrationCreated: migrationId,
         metadataUpdated,
-        preview
+        preview,
       };
     } catch (error) {
       logger.error('Create table with migration failed:', error);
       return {
         executed: false,
         metadataUpdated: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -125,14 +121,14 @@ export class IntegrationService {
         executed,
         migrationCreated: migrationId,
         metadataUpdated: true,
-        preview
+        preview,
       };
     } catch (error) {
       logger.error('Add column with migration failed:', error);
       return {
         executed: false,
         metadataUpdated: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -175,10 +171,10 @@ export class IntegrationService {
           [params.type === 'object' ? 'object_relationships' : 'array_relationships']: [{
             name: params.name,
             using: {
-              foreign_key_constraint_on: Object.keys(params.columnMapping)[0]
-            }
-          }]
-        }
+              foreign_key_constraint_on: Object.keys(params.columnMapping)[0],
+            },
+          }],
+        },
       );
       const metadataUpdated = true;
       
@@ -188,14 +184,14 @@ export class IntegrationService {
         executed,
         migrationCreated: migrationId,
         metadataUpdated,
-        preview
+        preview,
       };
     } catch (error) {
       logger.error('Create relationship with migration failed:', error);
       return {
         executed: false,
         metadataUpdated: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -209,7 +205,7 @@ export class IntegrationService {
         return {
           success: false,
           executionTime: 0,
-          error: `Validation failed: ${validation.errors.join(', ')}`
+          error: `Validation failed: ${validation.errors.join(', ')}`,
         };
       }
       
@@ -229,7 +225,7 @@ export class IntegrationService {
       return {
         success: false,
         executionTime: 0,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -252,7 +248,7 @@ export class IntegrationService {
         sql,
         affectedTables,
         estimatedImpact,
-        warnings
+        warnings,
       };
     } catch (error) {
       logger.error('Preview changes failed:', error);
@@ -260,7 +256,7 @@ export class IntegrationService {
         sql,
         affectedTables: [],
         estimatedImpact: 'Unknown impact - preview failed',
-        warnings: ['Could not generate preview due to error']
+        warnings: ['Could not generate preview due to error'],
       };
     }
   }
@@ -279,14 +275,14 @@ export class IntegrationService {
         const indexes = await this.postgresService.getIndexes();
         const hasIndex = indexes.some(idx => 
           idx.table === relationship.sourceTable && 
-          idx.columns.includes(Object.keys(relationship.columns)[0])
+          idx.columns.includes(Object.keys(relationship.columns)[0]),
         );
         
         if (!hasIndex) {
           issues.push({
             type: 'missing_index',
             description: `Foreign key ${Object.keys(relationship.columns)[0]} in table ${relationship.sourceTable} lacks an index`,
-            severity: 'warning'
+            severity: 'warning',
           });
         }
       }
@@ -300,14 +296,14 @@ export class IntegrationService {
           issues.push({
             type: 'missing_primary_key',
             description: `Table ${tableName} lacks a primary key`,
-            severity: 'error'
+            severity: 'error',
           });
         }
       }
       
       return {
         consistent: issues.filter(i => i.severity === 'error').length === 0,
-        issues
+        issues,
       };
     } catch (error) {
       logger.error('Schema consistency analysis failed:', error);
@@ -316,8 +312,8 @@ export class IntegrationService {
         issues: [{
           type: 'analysis_error',
           description: 'Failed to analyze schema consistency',
-          severity: 'error'
-        }]
+          severity: 'error',
+        }],
       };
     }
   }
@@ -347,7 +343,7 @@ export class IntegrationService {
         } catch (error) {
           failed.push({ 
             suggestion, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
+            error: error instanceof Error ? error.message : 'Unknown error', 
           });
         }
       }
@@ -362,10 +358,10 @@ export class IntegrationService {
             type: 'performance',
             priority: 'high',
             description: 'Schema optimization failed',
-            impact: 'Unknown'
+            impact: 'Unknown',
           },
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }]
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }],
       };
     }
   }
@@ -387,7 +383,7 @@ export class IntegrationService {
       
       return {
         success: true,
-        migration: migrationId
+        migration: migrationId,
       };
     } catch (error) {
       logger.error('Safe execute with migration failed:', error);
@@ -401,7 +397,7 @@ export class IntegrationService {
       return {
         success: false,
         rollbackPerformed: !!migrationId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -515,7 +511,7 @@ export class IntegrationService {
           priority: 'medium',
           description: `Table ${table.table} has low index usage (${table.indexUsage}%)`,
           impact: 'Could improve query performance significantly',
-          sql: `-- Consider adding indexes to frequently queried columns in ${table.table}`
+          sql: `-- Consider adding indexes to frequently queried columns in ${table.table}`,
         });
       }
     }

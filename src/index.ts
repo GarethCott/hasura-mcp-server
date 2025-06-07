@@ -9,7 +9,7 @@
  * - Summarizing all notes via a prompt
  */
 
-import HasuraMcpServer from './server.js';
+import { HasuraMcpServer } from './server.js';
 import { logger } from './utils/index.js';
 
 async function main() {

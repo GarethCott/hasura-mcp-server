@@ -1,5 +1,4 @@
-import { TableDefinition, TableColumn, RelationshipDefinition, PermissionDefinition } from '../types/index.js';
-import { logger } from '../utils/index.js';
+import { TableDefinition, TableColumn } from '../types/index.js';
 
 export class SqlGenerator {
   private static instance: SqlGenerator;
@@ -51,7 +50,7 @@ export class SqlGenerator {
     referencedTable: string,
     referencedColumn: string,
     schema: string = 'public',
-    referencedSchema: string = 'public'
+    referencedSchema: string = 'public',
   ): string {
     const constraintName = `fk_${tableName}_${columnName}`;
     return `ALTER TABLE ${schema}.${tableName} 
@@ -69,7 +68,7 @@ REFERENCES ${referencedSchema}.${referencedTable}(${referencedColumn});`;
     columnNames: string[],
     indexName?: string,
     unique: boolean = false,
-    schema: string = 'public'
+    schema: string = 'public',
   ): string {
     const actualIndexName = indexName || `idx_${tableName}_${columnNames.join('_')}`;
     const uniqueKeyword = unique ? 'UNIQUE ' : '';
@@ -92,7 +91,7 @@ VALUES (${values.join(', ')});`;
     tableName: string,
     data: Record<string, any>,
     whereClause: string,
-    schema: string = 'public'
+    schema: string = 'public',
   ): string {
     const setClause = Object.entries(data)
       .map(([col, val]) => `${col} = ${this.formatValue(val)}`)
@@ -113,7 +112,7 @@ WHERE ${whereClause};`;
     whereClause?: string,
     orderBy?: string,
     limit?: number,
-    schema: string = 'public'
+    schema: string = 'public',
   ): string {
     let sql = `SELECT ${columns.join(', ')} FROM ${schema}.${tableName}`;
     
@@ -172,7 +171,7 @@ WHERE ${whereClause};`;
       'jsonb': 'JSONB',
       'array': 'TEXT[]',
       'serial': 'SERIAL',
-      'bigserial': 'BIGSERIAL'
+      'bigserial': 'BIGSERIAL',
     };
 
     return typeMap[type.toLowerCase()] || type.toUpperCase();
@@ -238,7 +237,7 @@ WHERE ${whereClause};`;
     
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
