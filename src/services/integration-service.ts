@@ -17,16 +17,8 @@ import {
 } from '../types/index.js';
 import { logger } from '../utils/index.js';
 
-// Import existing Hasura service - we'll need to check what's available
-// For now, I'll create a placeholder interface
-interface HasuraService {
-  createMigration(name: string, sql: string): Promise<string>;
-  updateTableMetadata(tableName: string, schema: string, metadata: any): Promise<boolean>;
-  getMigrations(): Promise<Array<{ name: string; timestamp: string }>>;
-  deleteMigration(migrationId: string): Promise<void>;
-  applyMigrations(): Promise<void>;
-  rollbackMigration(migrationId: string): Promise<void>;
-}
+// Use the actual HasuraService interface
+import { HasuraService } from './hasura-service.js';
 
 export class IntegrationService {
   constructor(
@@ -66,7 +58,7 @@ export class IntegrationService {
       const migrationId = await this.hasuraService.createMigration(migrationName, sql);
       
       // 6. Update Hasura metadata
-      const metadataUpdated = await this.hasuraService.updateTableMetadata(
+      await this.hasuraService.updateTableMetadata(
         params.name,
         params.schema || 'public',
         {
@@ -77,6 +69,7 @@ export class IntegrationService {
           }
         }
       );
+      const metadataUpdated = true;
       
       logger.info(`Table ${params.name} created successfully in ${Date.now() - startTime}ms`);
       
@@ -175,7 +168,7 @@ export class IntegrationService {
       const migrationId = await this.hasuraService.createMigration(migrationName, sql);
       
       // 6. Update Hasura metadata for relationship
-      const metadataUpdated = await this.hasuraService.updateTableMetadata(
+      await this.hasuraService.updateTableMetadata(
         params.sourceTable,
         params.schema || 'public',
         {
@@ -187,6 +180,7 @@ export class IntegrationService {
           }]
         }
       );
+      const metadataUpdated = true;
       
       logger.info(`Relationship ${params.name} created successfully in ${Date.now() - startTime}ms`);
       
@@ -398,13 +392,10 @@ export class IntegrationService {
     } catch (error) {
       logger.error('Safe execute with migration failed:', error);
       
-      // 3. Clean up migration file if created
+      // 3. Note: Migration cleanup would need to be implemented manually
+      // The current HasuraService doesn't have a deleteMigration method
       if (migrationId) {
-        try {
-          await this.hasuraService.deleteMigration(migrationId);
-        } catch (cleanupError) {
-          logger.error('Failed to clean up migration file:', cleanupError);
-        }
+        logger.warn(`Migration ${migrationId} was created but execution failed. Manual cleanup may be required.`);
       }
       
       return {

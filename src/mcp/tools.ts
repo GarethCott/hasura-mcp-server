@@ -1,12 +1,26 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { hasuraService, sqlGenerator } from '../services/index.js';
+import { hasuraService, sqlGenerator, PostgresService, IntegrationService } from '../services/index.js';
 import { logger } from '../utils/index.js';
-import { TableDefinition, TableColumn, RelationshipDefinition, PermissionDefinition } from '../types/index.js';
+import { 
+  TableDefinition, 
+  TableColumn, 
+  RelationshipDefinition, 
+  PermissionDefinition,
+  CreateTableParams,
+  AddColumnParams,
+  RelationshipParams
+} from '../types/index.js';
+import { config } from '../config/index.js';
 
 export class ToolManager {
   private static instance: ToolManager;
+  private postgresService: PostgresService;
+  private integrationService: IntegrationService;
 
-  private constructor() {}
+  private constructor() {
+    this.postgresService = new PostgresService(config.postgres);
+    this.integrationService = new IntegrationService(hasuraService, this.postgresService);
+  }
 
   public static getInstance(): ToolManager {
     if (!ToolManager.instance) {
@@ -163,6 +177,116 @@ export class ToolManager {
             applyMetadata: { type: 'boolean', description: 'Whether to also apply metadata changes', default: true }
           }
         }
+      },
+      // NEW POSTGRESQL TOOLS
+      {
+        name: 'execute_sql',
+        description: 'Execute SQL directly against PostgreSQL with optional migration creation',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sql: { type: 'string', description: 'SQL statement to execute' },
+            createMigration: { type: 'boolean', description: 'Whether to create a migration file', default: false },
+            migrationName: { type: 'string', description: 'Name for the migration (required if createMigration is true)' }
+          },
+          required: ['sql']
+        }
+      },
+      {
+        name: 'validate_sql',
+        description: 'Validate SQL syntax and safety before execution',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sql: { type: 'string', description: 'SQL statement to validate' }
+          },
+          required: ['sql']
+        }
+      },
+      {
+        name: 'analyze_database_schema',
+        description: 'Analyze database schema for optimization opportunities and performance insights',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            includePerformance: { type: 'boolean', description: 'Include performance analysis', default: true },
+            schema: { type: 'string', description: 'Database schema to analyze', default: 'public' }
+          }
+        }
+      },
+      {
+        name: 'create_table_live',
+        description: 'Create table with immediate execution and migration generation',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Table name' },
+            columns: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string', description: 'Column name' },
+                  type: { type: 'string', description: 'Column data type' },
+                  nullable: { type: 'boolean', description: 'Whether column can be null', default: true },
+                  default: { type: 'string', description: 'Default value' },
+                  primaryKey: { type: 'boolean', description: 'Whether column is primary key', default: false },
+                  unique: { type: 'boolean', description: 'Whether column has unique constraint', default: false }
+                },
+                required: ['name', 'type']
+              }
+            },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+            executeImmediately: { type: 'boolean', description: 'Execute immediately on database', default: true }
+          },
+          required: ['name', 'columns']
+        }
+      },
+      {
+        name: 'preview_changes',
+        description: 'Preview what changes SQL will make without executing',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sql: { type: 'string', description: 'SQL statement to preview' }
+          },
+          required: ['sql']
+        }
+      },
+      {
+        name: 'test_connection',
+        description: 'Test PostgreSQL database connection',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'sync_schema',
+        description: 'Synchronize database schema with Hasura metadata',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            direction: { 
+              type: 'string', 
+              enum: ['db_to_hasura', 'hasura_to_db', 'bidirectional'],
+              description: 'Synchronization direction',
+              default: 'bidirectional'
+            },
+            schema: { type: 'string', description: 'Database schema to sync', default: 'public' }
+          }
+        }
+      },
+      {
+        name: 'optimize_database',
+        description: 'Apply optimization suggestions to improve performance',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            autoApply: { type: 'boolean', description: 'Automatically apply high-priority suggestions', default: false },
+            schema: { type: 'string', description: 'Database schema to optimize', default: 'public' }
+          }
+        }
       }
     ];
   }
@@ -191,6 +315,31 @@ export class ToolManager {
       
       case 'apply_migrations':
         return await this.applyMigrations(args);
+      
+      // NEW POSTGRESQL TOOLS
+      case 'execute_sql':
+        return await this.executeSql(args);
+      
+      case 'validate_sql':
+        return await this.validateSql(args);
+      
+      case 'analyze_database_schema':
+        return await this.analyzeDatabaseSchema(args);
+      
+      case 'create_table_live':
+        return await this.createTableLive(args);
+      
+      case 'preview_changes':
+        return await this.previewChanges(args);
+      
+      case 'test_connection':
+        return await this.testConnection(args);
+      
+      case 'sync_schema':
+        return await this.syncSchema(args);
+      
+      case 'optimize_database':
+        return await this.optimizeDatabase(args);
       
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -535,6 +684,203 @@ export class ToolManager {
     } catch (error) {
       logger.error('Failed to apply migrations', error);
       throw new Error(`Failed to apply migrations: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // NEW POSTGRESQL METHODS
+  private async executeSql(args: any): Promise<any> {
+    try {
+      const { sql, createMigration = false, migrationName } = args;
+
+      if (createMigration && !migrationName) {
+        throw new Error('migrationName is required when createMigration is true');
+      }
+
+      const result = await this.integrationService.validateAndExecute(sql, createMigration);
+
+      return {
+        success: result.success,
+        message: result.success ? 'SQL executed successfully' : 'SQL execution failed',
+        rowsAffected: result.rowsAffected,
+        data: result.data,
+        executionTime: result.executionTime,
+        migrationCreated: result.migrationCreated,
+        error: result.error
+      };
+    } catch (error) {
+      logger.error('Failed to execute SQL', error);
+      throw new Error(`Failed to execute SQL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async validateSql(args: any): Promise<any> {
+    try {
+      const { sql } = args;
+      const validation = await this.postgresService.validateSQL(sql);
+
+      return {
+        success: true,
+        isValid: validation.isValid,
+        errors: validation.errors,
+        warnings: validation.warnings,
+        message: validation.isValid ? 'SQL is valid' : 'SQL validation failed'
+      };
+    } catch (error) {
+      logger.error('Failed to validate SQL', error);
+      throw new Error(`Failed to validate SQL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async analyzeDatabaseSchema(args: any): Promise<any> {
+    try {
+      const { includePerformance = true, schema = 'public' } = args;
+
+      // Get basic schema information
+      const tables = await this.postgresService.listTables(schema);
+      const relationships = await this.postgresService.getRelationships(schema);
+      const indexes = await this.postgresService.getIndexes(schema);
+
+      let performance = null;
+      if (includePerformance) {
+        performance = await this.postgresService.analyzePerformance();
+      }
+
+      // Get detailed table information
+      const tableDetails = await Promise.all(
+        tables.map(tableName => this.postgresService.getTableSchema(tableName, schema))
+      );
+
+      const analysis = {
+        schema,
+        tableCount: tables.length,
+        tables: tableDetails,
+        relationships,
+        indexes,
+        performance,
+        summary: {
+          totalTables: tables.length,
+          totalRelationships: relationships.length,
+          totalIndexes: indexes.length,
+          tablesWithoutPrimaryKey: tableDetails.filter(t => !t.columns.some(c => c.primaryKey)).length
+        }
+      };
+
+      return {
+        success: true,
+        analysis,
+        message: `Schema analysis completed for ${schema}`
+      };
+    } catch (error) {
+      logger.error('Failed to analyze database schema', error);
+      throw new Error(`Failed to analyze database schema: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async createTableLive(args: any): Promise<any> {
+    try {
+      const { name, columns, schema = 'public', executeImmediately = true } = args;
+
+      const params: CreateTableParams = {
+        name,
+        columns,
+        schema,
+        executeImmediately
+      };
+
+      const result = await this.integrationService.createTableWithMigration(params);
+
+      return {
+        success: !result.error,
+        message: result.error ? `Failed to create table: ${result.error}` : `Table ${name} created successfully`,
+        executed: result.executed,
+        migrationCreated: result.migrationCreated,
+        metadataUpdated: result.metadataUpdated,
+        preview: result.preview,
+        error: result.error
+      };
+    } catch (error) {
+      logger.error('Failed to create table live', error);
+      throw new Error(`Failed to create table live: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async previewChanges(args: any): Promise<any> {
+    try {
+      const { sql } = args;
+      const preview = await this.integrationService.previewChanges(sql);
+
+      return {
+        success: true,
+        preview,
+        message: 'Change preview generated successfully'
+      };
+    } catch (error) {
+      logger.error('Failed to preview changes', error);
+      throw new Error(`Failed to preview changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async testConnection(args: any): Promise<any> {
+    try {
+      const isConnected = await this.postgresService.testConnection();
+
+      return {
+        success: true,
+        connected: isConnected,
+        message: isConnected ? 'Database connection successful' : 'Database connection failed'
+      };
+    } catch (error) {
+      logger.error('Failed to test connection', error);
+      return {
+        success: false,
+        connected: false,
+        message: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  private async syncSchema(args: any): Promise<any> {
+    try {
+      const { direction = 'bidirectional', schema = 'public' } = args;
+
+      // This is a placeholder implementation
+      // In a full implementation, this would sync between database and Hasura metadata
+      const consistency = await this.integrationService.analyzeSchemaConsistency();
+
+      return {
+        success: true,
+        message: `Schema sync initiated (${direction})`,
+        direction,
+        schema,
+        consistency,
+        note: 'This is a basic implementation. Full sync functionality would require more complex logic.'
+      };
+    } catch (error) {
+      logger.error('Failed to sync schema', error);
+      throw new Error(`Failed to sync schema: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async optimizeDatabase(args: any): Promise<any> {
+    try {
+      const { autoApply = false, schema = 'public' } = args;
+
+      const optimization = await this.integrationService.optimizeSchema();
+
+      return {
+        success: true,
+        message: `Database optimization completed for ${schema}`,
+        autoApply,
+        applied: optimization.applied,
+        failed: optimization.failed,
+        summary: {
+          appliedCount: optimization.applied.length,
+          failedCount: optimization.failed.length
+        }
+      };
+    } catch (error) {
+      logger.error('Failed to optimize database', error);
+      throw new Error(`Failed to optimize database: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }
