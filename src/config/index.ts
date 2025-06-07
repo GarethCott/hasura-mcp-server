@@ -1,3 +1,7 @@
+// Load environment variables from .env file
+import { config as dotenvConfig } from 'dotenv';
+dotenvConfig();
+
 import { HasuraConfig, PostgresConfig } from '../types/index.js';
 
 export class Config {
@@ -15,16 +19,16 @@ export class Config {
 
   private constructor() {
     this.hasura = {
-      endpoint: process.env.HASURA_ENDPOINT || 'http://localhost:8080',
+      endpoint: process.env.HASURA_ENDPOINT!,
       adminSecret: process.env.HASURA_ADMIN_SECRET,
-      projectPath: process.env.HASURA_PROJECT_PATH || process.cwd(),
+      projectPath: process.env.HASURA_PROJECT_PATH!,
     };
 
     this.postgres = {
-      connectionString: process.env.POSTGRES_CONNECTION_STRING || 'postgresql://localhost:5432/postgres',
+      connectionString: process.env.POSTGRES_CONNECTION_STRING!,
       poolSize: parseInt(process.env.POSTGRES_POOL_SIZE || '10'),
-      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '30000'),
-      connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '2000'),
+      idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '60000'),
+      connectionTimeoutMillis: parseInt(process.env.POSTGRES_CONNECTION_TIMEOUT || '30000'),
     };
 
     this.server = {
@@ -46,15 +50,15 @@ export class Config {
 
   public validateConfig(): void {
     if (!this.hasura.endpoint) {
-      throw new Error('HASURA_ENDPOINT is required');
+      throw new Error('HASURA_ENDPOINT environment variable is required');
     }
 
     if (!this.hasura.projectPath) {
-      throw new Error('HASURA_PROJECT_PATH is required');
+      throw new Error('HASURA_PROJECT_PATH environment variable is required');
     }
 
     if (!this.postgres.connectionString) {
-      throw new Error('POSTGRES_CONNECTION_STRING is required');
+      throw new Error('POSTGRES_CONNECTION_STRING environment variable is required');
     }
   }
 }

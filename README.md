@@ -1,6 +1,6 @@
-# Hasura MCP Server
+# Hasura MCP Server with PostgreSQL Integration
 
-A Model Context Protocol (MCP) server that enables AI assistants to automatically generate Hasura migrations and metadata from natural language descriptions.
+A comprehensive Model Context Protocol (MCP) server that enables AI assistants to automatically generate Hasura migrations, manage metadata, and execute PostgreSQL operations directly from natural language descriptions.
 
 ## 🏗️ Architecture
 
@@ -12,8 +12,10 @@ src/
 ├── config/          # Configuration management and environment variables
 ├── utils/           # Utility functions (logging, file system operations)
 ├── services/        # Business logic services
-│   ├── hasura-service.ts    # Hasura project operations
-│   └── sql-generator.ts     # SQL generation and validation
+│   ├── hasura-service.ts      # Hasura project operations
+│   ├── postgres-service.ts    # PostgreSQL database operations
+│   ├── integration-service.ts # Unified Hasura + PostgreSQL workflows
+│   └── sql-generator.ts       # SQL generation and validation
 ├── mcp/             # MCP protocol implementations
 │   ├── resources.ts         # MCP resources (data exposure)
 │   ├── tools.ts            # MCP tools (actions/functions)
@@ -25,22 +27,40 @@ src/
 ## 🚀 Features
 
 ### Resources
-Expose Hasura project data to AI assistants:
+Expose both Hasura project and live PostgreSQL data to AI assistants:
+
+**Hasura Resources:**
 - **hasura://config** - Project configuration
 - **hasura://metadata** - Complete metadata including tables, relationships, permissions
 - **hasura://migrations** - All migration files
 - **hasura://schema** - Current database schema structure
 - **hasura://project-info** - General project information
 
+**PostgreSQL Resources:**
+- **postgres://live-schema** - Real-time database schema from PostgreSQL
+- **postgres://performance** - Live performance analysis and optimization suggestions
+- **postgres://connection-status** - Current PostgreSQL connection status and configuration
+
 ### Tools
-Enable AI assistants to perform Hasura operations:
+Enable AI assistants to perform unified Hasura + PostgreSQL operations:
+
+**Core Hasura Tools:**
 - **create_table** - Create new tables with columns and constraints
 - **add_column** - Add columns to existing tables
 - **create_relationship** - Define relationships between tables
 - **set_permissions** - Configure role-based permissions
 - **generate_migration** - Create custom migration files
-- **analyze_schema** - Analyze schema and provide optimization suggestions
 - **apply_migrations** - Apply pending migrations and metadata to Hasura instance
+
+**Enhanced PostgreSQL Tools:**
+- **execute_sql** - Execute SQL directly against PostgreSQL with optional migration creation
+- **validate_sql** - Validate SQL syntax and safety before execution
+- **analyze_schema** - Analyze database schema for optimization opportunities
+- **create_table_live** - Create table with immediate execution and migration generation
+- **preview_changes** - Preview what changes SQL will make without executing
+- **rollback_migration** - Rollback a migration from both database and files
+- **sync_schema** - Synchronize database schema with Hasura metadata
+- **optimize_database** - Apply optimization suggestions to improve performance
 
 ### Prompts
 AI-assisted schema generation and optimization:
@@ -64,9 +84,14 @@ AI-assisted schema generation and optimization:
 
 3. **Set up environment variables:**
    ```bash
+   # Copy the example environment file
+   cp env.example .env
+   
+   # Edit .env with your configuration:
    export HASURA_ENDPOINT="https://your-hasura-endpoint.hasura.app"
    export HASURA_ADMIN_SECRET="your-admin-secret"
    export HASURA_PROJECT_PATH="/path/to/your/hasura/project"
+   export POSTGRES_CONNECTION_STRING="postgresql://user:password@host:port/database"
    export LOG_LEVEL="INFO"  # Optional: DEBUG, INFO, WARN, ERROR
    ```
 
@@ -74,12 +99,16 @@ AI-assisted schema generation and optimization:
 
 The server uses environment variables for configuration:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `HASURA_ENDPOINT` | Hasura GraphQL endpoint | `http://localhost:8080` |
-| `HASURA_ADMIN_SECRET` | Hasura admin secret | None |
-| `HASURA_PROJECT_PATH` | Path to Hasura project directory
-| `LOG_LEVEL` | Logging level | `INFO` |
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `HASURA_ENDPOINT` | Hasura GraphQL endpoint | ✅ Yes |
+| `HASURA_ADMIN_SECRET` | Hasura admin secret | No |
+| `HASURA_PROJECT_PATH` | Path to Hasura project directory | ✅ Yes |
+| `POSTGRES_CONNECTION_STRING` | PostgreSQL connection string | ✅ Yes |
+| `POSTGRES_POOL_SIZE` | Connection pool size | No (default: 10) |
+| `POSTGRES_IDLE_TIMEOUT` | Idle connection timeout (ms) | No (default: 60000) |
+| `POSTGRES_CONNECTION_TIMEOUT` | Connection timeout (ms) | No (default: 30000) |
+| `LOG_LEVEL` | Logging level | No (default: info) |
 
 ## 🏃‍♂️ Usage
 
@@ -109,7 +138,8 @@ Add to your Claude Desktop configuration:
       "env": {
         "HASURA_ENDPOINT": "https://your-hasura-endpoint.hasura.app",
         "HASURA_ADMIN_SECRET": "your-admin-secret",
-        "HASURA_PROJECT_PATH": "/path/to/your/hasura/project"
+        "HASURA_PROJECT_PATH": "/path/to/your/hasura/project",
+        "POSTGRES_CONNECTION_STRING": "postgresql://user:password@host:port/database"
       }
     }
   }
@@ -125,33 +155,50 @@ Use the generate_schema prompt with:
 - domain: "blog"
 ```
 
-#### 2. Add a New Table
+#### 2. Create Table with Live Execution
 ```
-Use the create_table tool with:
+Use the create_table_live tool with:
 {
   "name": "users",
   "columns": [
-    {"name": "id", "type": "uuid", "primaryKey": true},
-    {"name": "email", "type": "text", "unique": true},
-    {"name": "name", "type": "text"},
-    {"name": "created_at", "type": "timestamp", "default": "now()"}
-  ]
+    {"name": "id", "type": "uuid", "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"},
+    {"name": "email", "type": "text", "constraints": "UNIQUE NOT NULL"},
+    {"name": "name", "type": "text", "constraints": "NOT NULL"},
+    {"name": "created_at", "type": "timestamptz", "constraints": "DEFAULT now()"}
+  ],
+  "executeImmediately": true
 }
 ```
 
-#### 3. Set Permissions
+This creates the table in PostgreSQL AND generates the Hasura migration file!
+
+#### 3. Execute SQL with Migration
 ```
-Use the set_permissions tool with:
+Use the execute_sql tool with:
 {
-  "tableName": "users",
-  "role": "user",
-  "permission": "select",
-  "filter": {"id": {"_eq": "X-Hasura-User-Id"}},
-  "columns": ["id", "name", "email"]
+  "sql": "ALTER TABLE users ADD COLUMN last_login timestamptz",
+  "createMigration": true,
+  "migrationName": "add_last_login_column"
 }
 ```
 
-#### 4. Apply Changes
+#### 4. Validate Before Executing
+```
+Use the validate_sql tool to check SQL safety:
+{
+  "sql": "CREATE INDEX idx_users_email ON users(email)"
+}
+```
+
+#### 5. Analyze Performance
+```
+Use the analyze_schema tool to get optimization suggestions:
+{
+  "includePerformance": true
+}
+```
+
+#### 6. Apply Changes to Hasura
 ```
 Use the apply_migrations tool to push all changes live:
 {
@@ -182,6 +229,8 @@ Centralized TypeScript interfaces for:
 
 ### Services (`src/services/`)
 - **HasuraService**: Hasura project operations (config, metadata, migrations)
+- **PostgresService**: Direct PostgreSQL database operations and analysis
+- **IntegrationService**: Unified workflows coordinating Hasura and PostgreSQL
 - **SqlGenerator**: SQL generation, validation, and formatting
 
 ### MCP Implementation (`src/mcp/`)
@@ -196,6 +245,8 @@ Centralized TypeScript interfaces for:
 - **Testability**: Easy to unit test individual components
 - **Maintainability**: Clear separation of concerns
 - **Extensibility**: Easy to add new features without affecting existing code
+- **Integration**: Unified workflows combining Hasura and PostgreSQL operations
+- **Safety**: Environment-only configuration with no default fallbacks
 
 ### Adding New Features
 
@@ -209,6 +260,8 @@ Centralized TypeScript interfaces for:
 - Comprehensive error logging
 - Graceful error responses to MCP clients
 - Input validation and SQL safety checks
+- Transaction rollback on failures
+- Automatic cleanup of partial operations
 
 ## 🧪 Testing
 

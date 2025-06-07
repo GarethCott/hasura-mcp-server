@@ -139,7 +139,7 @@ WHERE ${whereClause};`;
     }
     
     if (column.default !== undefined) {
-      definition += ` DEFAULT ${this.formatValue(column.default)}`;
+      definition += ` DEFAULT ${this.formatDefaultValue(column.default)}`;
     }
     
     return definition;
@@ -203,6 +203,28 @@ WHERE ${whereClause};`;
     }
     
     return value.toString();
+  }
+
+  private formatDefaultValue(value: any): string {
+    if (value === null || value === undefined) {
+      return 'NULL';
+    }
+    
+    if (typeof value === 'string') {
+      // Check if it's a function call (contains parentheses) or special keywords
+      if (value.includes('(') || 
+          value.toLowerCase() === 'now()' || 
+          value.toLowerCase().includes('gen_random_uuid') ||
+          value.toLowerCase() === 'current_timestamp' ||
+          value.toLowerCase() === 'current_date' ||
+          value.toLowerCase() === 'current_time') {
+        return value; // Return function calls without quotes
+      }
+      return `'${value.replace(/'/g, "''")}'`; // Return literals with quotes
+    }
+    
+    // For non-strings, use the regular formatValue method
+    return this.formatValue(value);
   }
 
   public validateSql(sql: string): { isValid: boolean; errors: string[] } {

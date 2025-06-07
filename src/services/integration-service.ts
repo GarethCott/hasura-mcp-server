@@ -27,6 +27,15 @@ export class IntegrationService {
     const startTime = Date.now();
     
     try {
+      // Validate input parameters
+      if (!params.name) {
+        throw new Error('Table name is required');
+      }
+      
+      if (!params.columns || params.columns.length === 0) {
+        throw new Error('At least one column is required to create a table');
+      }
+      
       // 1. Generate SQL for table creation
       const sql = this.generateCreateTableSQL(params);
       
@@ -232,17 +241,37 @@ export class IntegrationService {
 
   async previewChanges(sql: string): Promise<ChangePreview> {
     try {
-      // Use EXPLAIN to understand what the query will do
-      const plan = await this.postgresService.explainQuery(sql);
-      
       // Extract affected tables from the SQL (basic parsing)
       const affectedTables = this.extractAffectedTables(sql);
       
-      // Estimate impact based on query type
-      const estimatedImpact = this.estimateImpact(sql, plan);
+      // Check if this is a DDL statement that can't be explained
+      const upperSQL = sql.trim().toUpperCase();
+      const isDDL = upperSQL.startsWith('CREATE TABLE') || 
+                    upperSQL.startsWith('ALTER TABLE') ||
+                    upperSQL.startsWith('DROP TABLE') ||
+                    upperSQL.startsWith('CREATE INDEX') ||
+                    upperSQL.startsWith('CREATE EXTENSION');
       
-      // Generate warnings
-      const warnings = this.generateWarnings(sql, plan);
+      let plan: any = null;
+      let estimatedImpact: string;
+      let warnings: string[];
+      
+      if (isDDL) {
+        // For DDL statements, provide static analysis
+        estimatedImpact = this.estimateImpactForDDL(sql);
+        warnings = this.generateWarningsForDDL(sql);
+      } else {
+        // For DML/queries, use EXPLAIN to understand what the query will do
+        try {
+          plan = await this.postgresService.explainQuery(sql);
+          estimatedImpact = this.estimateImpact(sql, plan);
+          warnings = this.generateWarnings(sql, plan);
+        } catch (explainError) {
+          // If EXPLAIN fails, fall back to static analysis
+          estimatedImpact = 'Could not analyze query execution plan';
+          warnings = ['Query execution plan could not be generated'];
+        }
+      }
       
       return {
         sql,
@@ -405,44 +434,64 @@ export class IntegrationService {
   // Helper methods
   private generateCreateTableSQL(params: CreateTableParams): string {
     const schema = params.schema || 'public';
+    
+    // Validate that we have columns
+    if (!params.columns || params.columns.length === 0) {
+      throw new Error('Cannot create table without columns. At least one column is required.');
+    }
+    
+    // Validate each column
+    for (const col of params.columns) {
+      if (!col.name || !col.type) {
+        throw new Error(`Invalid column definition: name and type are required. Got: ${JSON.stringify(col)}`);
+      }
+    }
+    
     const columns = params.columns.map(col => {
-      let columnDef = `"${col.name}" ${col.type}`;
+      let columnDef = `${col.name} ${col.type}`;
       
       if (!col.nullable) columnDef += ' NOT NULL';
-      if (col.default) columnDef += ` DEFAULT ${col.default}`;
+      if (col.default) {
+        // Check if default is a function call (contains parentheses) or a literal value
+        if (col.default.includes('(') || col.default.toLowerCase() === 'now()' || col.default.toLowerCase().includes('gen_random_uuid')) {
+          columnDef += ` DEFAULT ${col.default}`;
+        } else {
+          columnDef += ` DEFAULT '${col.default}'`;
+        }
+      }
       if (col.unique) columnDef += ' UNIQUE';
       
       return columnDef;
-    }).join(',\n  ');
+    }).join(', ');
     
     const primaryKeys = params.columns.filter(col => col.primaryKey).map(col => col.name);
-    if (primaryKeys.length > 0) {
-      return `CREATE TABLE "${schema}"."${params.name}" (\n  ${columns},\n  PRIMARY KEY ("${primaryKeys.join('", "')}")\n);`;
-    }
+    const tableConstraints = primaryKeys.length > 0 ? `, PRIMARY KEY (${primaryKeys.join(', ')})` : '';
     
-    return `CREATE TABLE "${schema}"."${params.name}" (\n  ${columns}\n);`;
+    return `CREATE TABLE ${params.name} (${columns}${tableConstraints})`;
   }
 
   private generateAddColumnSQL(params: AddColumnParams): string {
-    const schema = params.schema || 'public';
-    let columnDef = `"${params.column.name}" ${params.column.type}`;
+    let columnDef = `${params.column.name} ${params.column.type}`;
     
     if (!params.column.nullable) columnDef += ' NOT NULL';
-    if (params.column.default) columnDef += ` DEFAULT ${params.column.default}`;
+    if (params.column.default) {
+      // Check if default is a function call or literal value
+      if (params.column.default.includes('(') || params.column.default.toLowerCase() === 'now()' || params.column.default.toLowerCase().includes('gen_random_uuid')) {
+        columnDef += ` DEFAULT ${params.column.default}`;
+      } else {
+        columnDef += ` DEFAULT '${params.column.default}'`;
+      }
+    }
     if (params.column.unique) columnDef += ' UNIQUE';
     
-    return `ALTER TABLE "${schema}"."${params.table}" ADD COLUMN ${columnDef};`;
+    return `ALTER TABLE ${params.table} ADD COLUMN ${columnDef}`;
   }
 
   private generateRelationshipSQL(params: RelationshipParams): string {
-    const schema = params.schema || 'public';
     const sourceColumn = Object.keys(params.columnMapping)[0];
     const targetColumn = Object.values(params.columnMapping)[0];
     
-    return `ALTER TABLE "${schema}"."${params.sourceTable}" 
-            ADD CONSTRAINT "fk_${params.name}" 
-            FOREIGN KEY ("${sourceColumn}") 
-            REFERENCES "${schema}"."${params.targetTable}" ("${targetColumn}");`;
+    return `ALTER TABLE ${params.sourceTable} ADD CONSTRAINT fk_${params.name} FOREIGN KEY (${sourceColumn}) REFERENCES ${params.targetTable} (${targetColumn})`;
   }
 
   private extractAffectedTables(sql: string): string[] {
@@ -517,5 +566,58 @@ export class IntegrationService {
     }
     
     return suggestions;
+  }
+
+  private estimateImpactForDDL(sql: string): string {
+    const upperSQL = sql.toUpperCase();
+    
+    if (upperSQL.includes('CREATE TABLE')) {
+      return 'Low - Creating new table (no existing data affected)';
+    } else if (upperSQL.includes('DROP TABLE')) {
+      return 'High - Dropping table will remove all data permanently';
+    } else if (upperSQL.includes('ALTER TABLE ADD COLUMN')) {
+      return 'Low - Adding column (existing data preserved)';
+    } else if (upperSQL.includes('ALTER TABLE DROP COLUMN')) {
+      return 'High - Dropping column will permanently delete data in that column';
+    } else if (upperSQL.includes('ALTER TABLE')) {
+      return 'Medium - Modifying table structure';
+    } else if (upperSQL.includes('CREATE INDEX')) {
+      return 'Low - Adding index for better performance (no data changes)';
+    } else if (upperSQL.includes('DROP INDEX')) {
+      return 'Low - Removing index (no data changes, may affect performance)';
+    } else if (upperSQL.includes('CREATE EXTENSION')) {
+      return 'Low - Adding database extension (no data changes)';
+    }
+    
+    return 'Medium - DDL operation with unknown impact';
+  }
+
+  private generateWarningsForDDL(sql: string): string[] {
+    const warnings: string[] = [];
+    const upperSQL = sql.toUpperCase();
+    
+    if (upperSQL.includes('DROP TABLE')) {
+      warnings.push('This operation will permanently delete the entire table and all its data');
+      warnings.push('Make sure you have a backup before proceeding');
+    }
+    
+    if (upperSQL.includes('DROP COLUMN')) {
+      warnings.push('Dropping columns will permanently delete data in those columns');
+      warnings.push('This operation cannot be undone');
+    }
+    
+    if (upperSQL.includes('ALTER TABLE') && upperSQL.includes('NOT NULL')) {
+      warnings.push('Adding NOT NULL constraint may fail if existing rows have NULL values');
+    }
+    
+    if (upperSQL.includes('CREATE TABLE') && upperSQL.includes('uuid')) {
+      warnings.push('UUID columns require the uuid-ossp extension to be enabled');
+    }
+    
+    if (upperSQL.includes('CREATE INDEX') && !upperSQL.includes('CONCURRENTLY')) {
+      warnings.push('Creating indexes without CONCURRENTLY may lock the table during creation');
+    }
+    
+    return warnings;
   }
 } 
