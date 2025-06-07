@@ -265,23 +265,123 @@ WHERE ${whereClause};`;
 
   public generateSchemaAnalysisSql(schema: string = 'public'): string {
     return `
-SELECT 
-  t.table_name,
-  t.table_schema,
-  c.column_name,
-  c.data_type,
-  c.is_nullable,
-  c.column_default,
-  tc.constraint_type,
-  kcu.constraint_name
-FROM information_schema.tables t
-LEFT JOIN information_schema.columns c ON t.table_name = c.table_name AND t.table_schema = c.table_schema
-LEFT JOIN information_schema.table_constraints tc ON t.table_name = tc.table_name AND t.table_schema = tc.table_schema
-LEFT JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
-WHERE t.table_schema = '${schema}'
-  AND t.table_type = 'BASE TABLE'
-ORDER BY t.table_name, c.ordinal_position;
-    `.trim();
+      SELECT 
+        t.table_name,
+        t.table_type,
+        c.column_name,
+        c.data_type,
+        c.is_nullable,
+        c.column_default
+      FROM information_schema.tables t
+      LEFT JOIN information_schema.columns c ON t.table_name = c.table_name
+      WHERE t.table_schema = '${schema}'
+      ORDER BY t.table_name, c.ordinal_position;
+    `;
+  }
+
+  // NEW: Advanced PostgreSQL SQL Generation Methods
+  public generateCreateFunctionSql(
+    name: string,
+    parameters: string,
+    returnType: string,
+    language: string,
+    body: string,
+    options?: string,
+    schema: string = 'public',
+  ): string {
+    return `
+CREATE OR REPLACE FUNCTION ${schema}.${name}(${parameters})
+RETURNS ${returnType}
+LANGUAGE ${language}
+${options || ''}
+AS $$
+${body}
+$$;`;
+  }
+
+  public generateDropFunctionSql(name: string, schema: string = 'public'): string {
+    return `DROP FUNCTION IF EXISTS ${schema}.${name} CASCADE;`;
+  }
+
+  public generateCreateTriggerSql(
+    name: string,
+    tableName: string,
+    functionName: string,
+    when: string,
+    events: string[],
+    forEach: string,
+    condition?: string,
+    schema: string = 'public',
+  ): string {
+    const eventsStr = events.join(' OR ');
+    const conditionClause = condition ? `WHEN (${condition})` : '';
+    
+    return `
+CREATE TRIGGER ${name}
+${when} ${eventsStr} ON ${schema}.${tableName}
+FOR EACH ${forEach}
+${conditionClause}
+EXECUTE FUNCTION ${schema}.${functionName}();`;
+  }
+
+  public generateDropTriggerSql(name: string, tableName: string, schema: string = 'public'): string {
+    return `DROP TRIGGER IF EXISTS ${name} ON ${schema}.${tableName};`;
+  }
+
+  public generateCreateIndexSqlAdvanced(
+    tableName: string,
+    indexName: string,
+    columns: string[],
+    unique?: boolean,
+    type?: string,
+    where?: string,
+    schema: string = 'public',
+  ): string {
+    const uniqueClause = unique ? 'UNIQUE' : '';
+    const typeClause = type ? `USING ${type}` : '';
+    const whereClause = where ? `WHERE ${where}` : '';
+    const columnsStr = columns.map(col => `"${col}"`).join(', ');
+    
+    return `
+CREATE ${uniqueClause} INDEX ${indexName}
+ON ${schema}.${tableName} ${typeClause}
+(${columnsStr})
+${whereClause};`;
+  }
+
+  public generateAlterTableSql(
+    tableName: string,
+    operation: string,
+    details: string,
+    schema: string = 'public',
+  ): string {
+    return `ALTER TABLE ${schema}.${tableName} ${operation} ${details};`;
+  }
+
+  public generateInsertDataSql(table: string, data: Record<string, any>, schema: string = 'public'): string {
+    const columns = Object.keys(data);
+    const values = Object.values(data).map(val => this.formatValue(val));
+    const columnNames = columns.map(col => `"${col}"`).join(', ');
+    
+    return `INSERT INTO ${schema}.${table} (${columnNames}) VALUES (${values.join(', ')}) RETURNING *;`;
+  }
+
+  public generateUpdateDataSql(
+    table: string,
+    data: Record<string, any>,
+    where: string,
+    schema: string = 'public',
+  ): string {
+    const setClause = Object.entries(data)
+      .map(([col, val]) => `"${col}" = ${this.formatValue(val)}`)
+      .join(', ');
+    
+    return `UPDATE ${schema}.${table} SET ${setClause} WHERE ${where} RETURNING *;`;
+  }
+
+  public generateDeleteDataSql(table: string, where?: string, schema: string = 'public'): string {
+    const whereClause = where ? `WHERE ${where}` : '';
+    return `DELETE FROM ${schema}.${table} ${whereClause} RETURNING *;`;
   }
 }
 

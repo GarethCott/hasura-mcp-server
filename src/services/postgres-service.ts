@@ -13,6 +13,14 @@ import {
   QueryPlan,
   TableColumn,
   ConstraintInfo,
+  CreateFunctionParams,
+  CreateTriggerParams,
+  CreateIndexParams,
+  AlterTableParams,
+  InsertParams,
+  UpdateParams,
+  DeleteParams,
+  TriggerInfo,
 } from '../types/index.js';
 import { logger } from '../utils/index.js';
 
@@ -465,12 +473,175 @@ export class PostgresService {
 
   private async getTableRowCount(tableName: string, schema: string): Promise<number> {
     try {
-      const result = await this.query(`SELECT COUNT(*) as count FROM "${schema}"."${tableName}"`);
-      return parseInt(result.rows[0].count);
+      const query = `SELECT COUNT(*) as count FROM "${schema}"."${tableName}";`;
+      const result = await this.query(query);
+      return parseInt(result.rows[0].count, 10);
     } catch (error) {
-      logger.warn(`Could not get row count for ${schema}.${tableName}:`, error);
+      logger.warn(`Failed to get row count for ${schema}.${tableName}:`, error);
       return 0;
     }
+  }
+
+  // NEW: Advanced PostgreSQL Operations
+  async createFunction(params: CreateFunctionParams): Promise<ExecutionResult> {
+    const schema = params.schema || 'public';
+    const sql = `
+      CREATE OR REPLACE FUNCTION "${schema}"."${params.name}"(${params.parameters})
+      RETURNS ${params.returnType}
+      LANGUAGE ${params.language}
+      ${params.options || ''}
+      AS $$
+      ${params.body}
+      $$;
+    `;
+    
+    return this.execute(sql);
+  }
+
+  async createTrigger(params: CreateTriggerParams): Promise<ExecutionResult> {
+    const schema = params.schema || 'public';
+    const events = params.events.join(' OR ');
+    const conditionClause = params.condition ? `WHEN (${params.condition})` : '';
+    
+    const sql = `
+      CREATE TRIGGER "${params.name}"
+      ${params.when} ${events} ON "${schema}"."${params.tableName}"
+      FOR EACH ${params.forEach}
+      ${conditionClause}
+      EXECUTE FUNCTION "${schema}"."${params.functionName}"();
+    `;
+    
+    return this.execute(sql);
+  }
+
+  async createIndex(params: CreateIndexParams): Promise<ExecutionResult> {
+    const schema = params.schema || 'public';
+    const uniqueClause = params.unique ? 'UNIQUE' : '';
+    const typeClause = params.type ? `USING ${params.type}` : '';
+    const whereClause = params.where ? `WHERE ${params.where}` : '';
+    const columns = params.columns.map(col => `"${col}"`).join(', ');
+    
+    const sql = `
+      CREATE ${uniqueClause} INDEX "${params.indexName}"
+      ON "${schema}"."${params.tableName}" ${typeClause}
+      (${columns})
+      ${whereClause};
+    `;
+    
+    return this.execute(sql);
+  }
+
+  async alterTable(params: AlterTableParams): Promise<ExecutionResult> {
+    const schema = params.schema || 'public';
+    const sql = `ALTER TABLE "${schema}"."${params.tableName}" ${params.operation} ${params.details};`;
+    
+    return this.execute(sql);
+  }
+
+  async insert(params: InsertParams): Promise<ExecutionResult> {
+    const schema = params.schema || 'public';
+    const columns = Object.keys(params.data);
+    const values = Object.values(params.data);
+    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    const columnNames = columns.map(col => `"${col}"`).join(', ');
+    
+    const sql = `INSERT INTO "${schema}"."${params.table}" (${columnNames}) VALUES (${placeholders}) RETURNING *;`;
+    
+    return this.execute(sql, values);
+  }
+
+  async update(params: UpdateParams): Promise<ExecutionResult> {
+    const schema = params.schema || 'public';
+    const setClause = Object.entries(params.data)
+      .map(([col, _], i) => `"${col}" = $${i + 1}`)
+      .join(', ');
+    
+    const sql = `UPDATE "${schema}"."${params.table}" SET ${setClause} WHERE ${params.where} RETURNING *;`;
+    
+    return this.execute(sql, Object.values(params.data));
+  }
+
+  async delete(params: DeleteParams): Promise<ExecutionResult> {
+    const schema = params.schema || 'public';
+    const sql = `DELETE FROM "${schema}"."${params.table}" WHERE ${params.where} RETURNING *;`;
+    
+    return this.execute(sql);
+  }
+
+  async listFunctions(schema: string = 'public'): Promise<any[]> {
+    const query = `
+      SELECT 
+        p.proname as name,
+        pg_get_function_result(p.oid) as return_type,
+        pg_get_function_arguments(p.oid) as parameters,
+        l.lanname as language
+      FROM pg_proc p
+      JOIN pg_namespace n ON p.pronamespace = n.oid
+      JOIN pg_language l ON p.prolang = l.oid
+      WHERE n.nspname = $1
+      ORDER BY p.proname;
+    `;
+    
+    const result = await this.query(query, [schema]);
+    return result.rows;
+  }
+
+  async listTriggers(schema: string = 'public'): Promise<TriggerInfo[]> {
+    const query = `
+      SELECT 
+        t.tgname as name,
+        c.relname as table,
+        p.proname as function,
+        CASE t.tgtype & 66
+          WHEN 2 THEN 'BEFORE'
+          WHEN 64 THEN 'INSTEAD OF'
+          ELSE 'AFTER'
+        END as when,
+        CASE t.tgtype & 28
+          WHEN 4 THEN ARRAY['INSERT']
+          WHEN 8 THEN ARRAY['DELETE']
+          WHEN 16 THEN ARRAY['UPDATE']
+          WHEN 12 THEN ARRAY['INSERT', 'DELETE']
+          WHEN 20 THEN ARRAY['INSERT', 'UPDATE']
+          WHEN 24 THEN ARRAY['DELETE', 'UPDATE']
+          WHEN 28 THEN ARRAY['INSERT', 'DELETE', 'UPDATE']
+        END as events,
+        CASE t.tgtype & 1
+          WHEN 1 THEN 'ROW'
+          ELSE 'STATEMENT'
+        END as forEach
+      FROM pg_trigger t
+      JOIN pg_class c ON t.tgrelid = c.oid
+      JOIN pg_namespace n ON c.relnamespace = n.oid
+      JOIN pg_proc p ON t.tgfoid = p.oid
+      WHERE n.nspname = $1 AND NOT t.tgisinternal
+      ORDER BY t.tgname;
+    `;
+    
+    const result = await this.query(query, [schema]);
+    return result.rows.map(row => ({
+      name: row.name,
+      table: row.table,
+      function: row.function,
+      when: row.when,
+      events: row.events,
+      forEach: row.forEach,
+    }));
+  }
+
+  async dropFunction(name: string, schema: string = 'public'): Promise<ExecutionResult> {
+    const sql = `DROP FUNCTION IF EXISTS "${schema}"."${name}" CASCADE;`;
+    return this.execute(sql);
+  }
+
+  async dropTrigger(name: string, tableName: string, schema: string = 'public'): Promise<ExecutionResult> {
+    const sql = `DROP TRIGGER IF EXISTS "${name}" ON "${schema}"."${tableName}";`;
+    return this.execute(sql);
+  }
+
+  async dropIndex(name: string, schema: string = 'public'): Promise<ExecutionResult> {
+    const sql = `DROP INDEX IF EXISTS "${schema}"."${name}";`;
+    return this.execute(sql);
   }
 
   // Cleanup

@@ -11,7 +11,7 @@ import {
 
 import { config } from './config/index.js';
 import { logger } from './utils/index.js';
-import { resourceManager, toolManager, promptManager } from './mcp/index.js';
+import { resourceManager, toolRegistry, promptManager } from './mcp/index.js';
 
 export class HasuraMcpServer {
   private server: Server;
@@ -28,7 +28,7 @@ export class HasuraMcpServer {
           tools: {},
           prompts: {},
         },
-      }
+      },
     );
 
     this.setupHandlers();
@@ -71,7 +71,11 @@ export class HasuraMcpServer {
     // Tool handlers
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       try {
-        const tools = toolManager.getAvailableTools();
+        const tools = toolRegistry.getAllTools().map(tool => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.schema,
+        }));
         logger.info(`Listed ${tools.length} tools`);
         return { tools };
       } catch (error) {
@@ -85,7 +89,12 @@ export class HasuraMcpServer {
         const { name, arguments: args } = request.params;
         logger.info(`Calling tool: ${name}`, { args });
         
-        const result = await toolManager.executeTool(name, args || {});
+        const tool = toolRegistry.getTool(name);
+        if (!tool) {
+          throw new Error(`Tool not found: ${name}`);
+        }
+        
+        const result = await tool.execute(args || {});
         
         return {
           content: [

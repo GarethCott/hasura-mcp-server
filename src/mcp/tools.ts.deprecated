@@ -200,7 +200,7 @@ export class ToolManager {
       },
       {
         name: 'analyze_database_schema',
-        description: 'Analyze database schema for optimization opportunities and performance insights',
+        description: 'Analyze database schema for optimization opportunities',
         inputSchema: {
           type: 'object',
           properties: {
@@ -221,18 +221,15 @@ export class ToolManager {
               items: {
                 type: 'object',
                 properties: {
-                  name: { type: 'string', description: 'Column name' },
-                  type: { type: 'string', description: 'Column data type' },
-                  nullable: { type: 'boolean', description: 'Whether column can be null', default: true },
-                  default: { type: 'string', description: 'Default value' },
-                  primaryKey: { type: 'boolean', description: 'Whether column is primary key', default: false },
-                  unique: { type: 'boolean', description: 'Whether column has unique constraint', default: false },
+                  name: { type: 'string' },
+                  type: { type: 'string' },
+                  constraints: { type: 'string', description: 'Column constraints' },
                 },
                 required: ['name', 'type'],
               },
             },
+            executeImmediately: { type: 'boolean', description: 'Execute immediately', default: true },
             schema: { type: 'string', description: 'Database schema', default: 'public' },
-            executeImmediately: { type: 'boolean', description: 'Execute immediately on database', default: true },
           },
           required: ['name', 'columns'],
         },
@@ -265,10 +262,9 @@ export class ToolManager {
             direction: { 
               type: 'string', 
               enum: ['db_to_hasura', 'hasura_to_db', 'bidirectional'],
-              description: 'Synchronization direction',
+              description: 'Sync direction',
               default: 'bidirectional',
             },
-            schema: { type: 'string', description: 'Database schema to sync', default: 'public' },
           },
         },
       },
@@ -278,9 +274,203 @@ export class ToolManager {
         inputSchema: {
           type: 'object',
           properties: {
-            autoApply: { type: 'boolean', description: 'Automatically apply high-priority suggestions', default: false },
-            schema: { type: 'string', description: 'Database schema to optimize', default: 'public' },
+            suggestions: { 
+              type: 'array',
+              items: { type: 'object' },
+              description: 'Optimization suggestions to apply',
+            },
+            autoApply: { type: 'boolean', description: 'Automatically apply safe optimizations', default: false },
           },
+        },
+      },
+      // ADVANCED POSTGRESQL OPERATIONS
+      {
+        name: 'create_function',
+        description: 'Create a PostgreSQL function/procedure',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Function name' },
+            parameters: { type: 'string', description: 'Function parameters' },
+            returnType: { type: 'string', description: 'Return type' },
+            language: { type: 'string', description: 'Function language (plpgsql, sql, etc.)', default: 'plpgsql' },
+            body: { type: 'string', description: 'Function body' },
+            options: { type: 'string', description: 'Additional function options' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+            createMigration: { type: 'boolean', description: 'Create migration file', default: true },
+          },
+          required: ['name', 'parameters', 'returnType', 'body'],
+        },
+      },
+      {
+        name: 'create_trigger',
+        description: 'Create a trigger on a table',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Trigger name' },
+            tableName: { type: 'string', description: 'Table name' },
+            functionName: { type: 'string', description: 'Function to execute' },
+            when: { type: 'string', enum: ['BEFORE', 'AFTER', 'INSTEAD OF'], description: 'When to execute' },
+            events: { 
+              type: 'array', 
+              items: { type: 'string', enum: ['INSERT', 'UPDATE', 'DELETE'] },
+              description: 'Trigger events',
+            },
+            forEach: { type: 'string', enum: ['ROW', 'STATEMENT'], description: 'For each row or statement', default: 'ROW' },
+            condition: { type: 'string', description: 'Optional WHEN condition' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+            createMigration: { type: 'boolean', description: 'Create migration file', default: true },
+          },
+          required: ['name', 'tableName', 'functionName', 'when', 'events'],
+        },
+      },
+      {
+        name: 'create_index',
+        description: 'Create an index on a table',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tableName: { type: 'string', description: 'Table name' },
+            indexName: { type: 'string', description: 'Index name' },
+            columns: { 
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Columns to index',
+            },
+            unique: { type: 'boolean', description: 'Unique index', default: false },
+            type: { type: 'string', description: 'Index type (BTREE, HASH, GIN, GIST, etc.)' },
+            where: { type: 'string', description: 'Optional WHERE condition' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+            createMigration: { type: 'boolean', description: 'Create migration file', default: true },
+          },
+          required: ['tableName', 'indexName', 'columns'],
+        },
+      },
+      {
+        name: 'alter_table',
+        description: 'Alter a table structure',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tableName: { type: 'string', description: 'Table name' },
+            operation: { 
+              type: 'string', 
+              description: 'Operation type (ADD COLUMN, DROP COLUMN, ALTER COLUMN, etc.)',
+            },
+            details: { type: 'string', description: 'Specific details for the operation' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+            createMigration: { type: 'boolean', description: 'Create migration file', default: true },
+          },
+          required: ['tableName', 'operation', 'details'],
+        },
+      },
+      {
+        name: 'insert_data',
+        description: 'Insert a new record into a table',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            table: { type: 'string', description: 'Table name' },
+            data: { 
+              type: 'object',
+              additionalProperties: true,
+              description: 'Data to insert',
+            },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+          },
+          required: ['table', 'data'],
+        },
+      },
+      {
+        name: 'update_data',
+        description: 'Update records in a table',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            table: { type: 'string', description: 'Table name' },
+            data: { 
+              type: 'object',
+              additionalProperties: true,
+              description: 'Data to update',
+            },
+            where: { type: 'string', description: 'WHERE condition' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+          },
+          required: ['table', 'data', 'where'],
+        },
+      },
+      {
+        name: 'delete_data',
+        description: 'Delete records from a table',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            table: { type: 'string', description: 'Table name' },
+            where: { type: 'string', description: 'WHERE condition' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+          },
+          required: ['table', 'where'],
+        },
+      },
+      {
+        name: 'list_functions',
+        description: 'List all functions in a schema',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+          },
+        },
+      },
+      {
+        name: 'list_triggers',
+        description: 'List all triggers in a schema',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+          },
+        },
+      },
+      {
+        name: 'drop_function',
+        description: 'Drop a function',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Function name' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+            createMigration: { type: 'boolean', description: 'Create migration file', default: true },
+          },
+          required: ['name'],
+        },
+      },
+      {
+        name: 'drop_trigger',
+        description: 'Drop a trigger',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Trigger name' },
+            tableName: { type: 'string', description: 'Table name' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+            createMigration: { type: 'boolean', description: 'Create migration file', default: true },
+          },
+          required: ['name', 'tableName'],
+        },
+      },
+      {
+        name: 'drop_index',
+        description: 'Drop an index',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Index name' },
+            schema: { type: 'string', description: 'Database schema', default: 'public' },
+            createMigration: { type: 'boolean', description: 'Create migration file', default: true },
+          },
+          required: ['name'],
         },
       },
     ];
@@ -335,6 +525,43 @@ export class ToolManager {
       
       case 'optimize_database':
         return await this.optimizeDatabase(args);
+      
+      // ADVANCED POSTGRESQL OPERATIONS
+      case 'create_function':
+        return await this.createFunction(args);
+      
+      case 'create_trigger':
+        return await this.createTrigger(args);
+      
+      case 'create_index':
+        return await this.createIndex(args);
+      
+      case 'alter_table':
+        return await this.alterTable(args);
+      
+      case 'insert_data':
+        return await this.insertData(args);
+      
+      case 'update_data':
+        return await this.updateData(args);
+      
+      case 'delete_data':
+        return await this.deleteData(args);
+      
+      case 'list_functions':
+        return await this.listFunctions(args);
+      
+      case 'list_triggers':
+        return await this.listTriggers(args);
+      
+      case 'drop_function':
+        return await this.dropFunction(args);
+      
+      case 'drop_trigger':
+        return await this.dropTrigger(args);
+      
+      case 'drop_index':
+        return await this.dropIndex(args);
       
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -876,6 +1103,392 @@ export class ToolManager {
     } catch (error) {
       logger.error('Failed to optimize database', error);
       throw new Error(`Failed to optimize database: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // ADVANCED POSTGRESQL OPERATIONS
+  private async createFunction(args: any): Promise<any> {
+    try {
+      const { name, parameters, returnType, language, body, options, schema, createMigration } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateCreateFunctionSql(name, parameters, returnType, language, body, options, schema);
+      const downSql = sqlGenerator.generateDropFunctionSql(name, schema);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `create_function_${name}`,
+        upSql,
+        downSql,
+      );
+
+      // Note: Function metadata would be handled separately in Hasura
+
+      return {
+        success: true,
+        message: `Function ${schema}.${name} created successfully`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to create function', error);
+      throw new Error(`Failed to create function: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async createTrigger(args: any): Promise<any> {
+    try {
+      const { name, tableName, functionName, when, events, forEach, condition, schema, createMigration } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateCreateTriggerSql(name, tableName, functionName, when, events, forEach, condition, schema);
+      const downSql = sqlGenerator.generateDropTriggerSql(name, tableName, schema);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `create_trigger_${name}`,
+        upSql,
+        downSql,
+      );
+
+      // Note: Trigger metadata would be handled separately in Hasura
+
+      return {
+        success: true,
+        message: `Trigger ${schema}.${name} created successfully`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to create trigger', error);
+      throw new Error(`Failed to create trigger: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async createIndex(args: any): Promise<any> {
+    try {
+      const { tableName, indexName, columns, unique, type, where, schema, createMigration } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateCreateIndexSqlAdvanced(tableName, indexName, columns, unique, type, where, schema);
+      const downSql = sqlGenerator.generateDropIndexSql(indexName);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `create_index_${indexName}`,
+        upSql,
+        downSql,
+      );
+
+      // Note: Index metadata would be handled separately in Hasura
+
+      return {
+        success: true,
+        message: `Index ${schema}.${indexName} created successfully`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to create index', error);
+      throw new Error(`Failed to create index: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async alterTable(args: any): Promise<any> {
+    try {
+      const { tableName, operation, details, schema, createMigration } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateAlterTableSql(tableName, operation, details, schema);
+      const downSql = sqlGenerator.generateAlterTableSql(tableName, operation, details, schema);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `alter_table_${tableName}_${operation}`,
+        upSql,
+        downSql,
+      );
+
+      // Create metadata
+      const metadata = {
+        table: { name: tableName, schema },
+        configuration: {
+          custom_root_fields: {},
+          custom_column_names: {},
+        },
+      };
+
+      await hasuraService.updateTableMetadata(tableName, schema, metadata);
+
+      return {
+        success: true,
+        message: `Table ${schema}.${tableName} altered successfully`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to alter table', error);
+      throw new Error(`Failed to alter table: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async insertData(args: any): Promise<any> {
+    try {
+      const { table, data, schema = 'public' } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateInsertDataSql(table, data, schema);
+      const downSql = sqlGenerator.generateDeleteDataSql(table, schema);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `insert_data_${table}`,
+        upSql,
+        downSql,
+      );
+
+      return {
+        success: true,
+        message: `Data inserted into ${schema}.${table}`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to insert data', error);
+      throw new Error(`Failed to insert data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async updateData(args: any): Promise<any> {
+    try {
+      const { table, data, where, schema = 'public' } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateUpdateDataSql(table, data, where, schema);
+      const downSql = sqlGenerator.generateUpdateDataSql(table, data, where, schema);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `update_data_${table}_${where}`,
+        upSql,
+        downSql,
+      );
+
+      return {
+        success: true,
+        message: `Data updated in ${schema}.${table}`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to update data', error);
+      throw new Error(`Failed to update data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async deleteData(args: any): Promise<any> {
+    try {
+      const { table, where, schema = 'public' } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateDeleteDataSql(table, where, schema);
+      const downSql = sqlGenerator.generateDeleteDataSql(table, where, schema);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `delete_data_${table}_${where}`,
+        upSql,
+        downSql,
+      );
+
+      return {
+        success: true,
+        message: `Data deleted from ${schema}.${table}`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to delete data', error);
+      throw new Error(`Failed to delete data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async listFunctions(args: any): Promise<any> {
+    try {
+      const { schema = 'public' } = args;
+
+      const functions = await this.postgresService.listFunctions(schema);
+
+      return {
+        success: true,
+        functions,
+      };
+    } catch (error) {
+      logger.error('Failed to list functions', error);
+      throw new Error(`Failed to list functions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async listTriggers(args: any): Promise<any> {
+    try {
+      const { schema = 'public' } = args;
+
+      const triggers = await this.postgresService.listTriggers(schema);
+
+      return {
+        success: true,
+        triggers,
+      };
+    } catch (error) {
+      logger.error('Failed to list triggers', error);
+      throw new Error(`Failed to list triggers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async dropFunction(args: any): Promise<any> {
+    try {
+      const { name, schema, createMigration } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateDropFunctionSql(name, schema);
+      const downSql = sqlGenerator.generateDropFunctionSql(name, schema);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `drop_function_${name}`,
+        upSql,
+        downSql,
+      );
+
+      // Note: Function metadata would be handled separately in Hasura
+
+      return {
+        success: true,
+        message: `Function ${schema}.${name} dropped successfully`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to drop function', error);
+      throw new Error(`Failed to drop function: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async dropTrigger(args: any): Promise<any> {
+    try {
+      const { name, tableName, schema, createMigration } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateDropTriggerSql(name, tableName, schema);
+      const downSql = sqlGenerator.generateDropTriggerSql(name, tableName, schema);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `drop_trigger_${name}`,
+        upSql,
+        downSql,
+      );
+
+      // Note: Trigger metadata would be handled separately in Hasura
+
+      return {
+        success: true,
+        message: `Trigger ${schema}.${name} dropped successfully`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to drop trigger', error);
+      throw new Error(`Failed to drop trigger: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async dropIndex(args: any): Promise<any> {
+    try {
+      const { name, schema, createMigration } = args;
+
+      // Generate SQL
+      const upSql = sqlGenerator.generateDropIndexSql(name);
+      const downSql = sqlGenerator.generateDropIndexSql(name);
+
+      // Validate SQL
+      const validation = sqlGenerator.validateSql(upSql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL generated: ${validation.errors.join(', ')}`);
+      }
+
+      // Create migration
+      const migrationName = await hasuraService.createMigration(
+        `drop_index_${name}`,
+        upSql,
+        downSql,
+      );
+
+      // Note: Index metadata would be handled separately in Hasura
+
+      return {
+        success: true,
+        message: `Index ${schema}.${name} dropped successfully`,
+        migrationName,
+        sql: upSql,
+      };
+    } catch (error) {
+      logger.error('Failed to drop index', error);
+      throw new Error(`Failed to drop index: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

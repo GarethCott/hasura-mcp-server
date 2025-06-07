@@ -283,4 +283,80 @@ export interface WorkflowResult {
   metadataUpdated: boolean;
   preview: ChangePreview;
   error?: string;
+}
+
+// NEW: Advanced PostgreSQL Operation Types
+export interface CreateFunctionParams {
+  name: string;
+  parameters: string;
+  returnType: string;
+  language: string;
+  body: string;
+  options?: string;
+  schema?: string;
+}
+
+export interface CreateTriggerParams {
+  name: string;
+  tableName: string;
+  functionName: string;
+  when: 'BEFORE' | 'AFTER' | 'INSTEAD OF';
+  events: ('INSERT' | 'UPDATE' | 'DELETE')[];
+  forEach: 'ROW' | 'STATEMENT';
+  condition?: string;
+  schema?: string;
+}
+
+export interface CreateIndexParams {
+  tableName: string;
+  indexName: string;
+  columns: string[];
+  unique?: boolean;
+  type?: string;
+  where?: string;
+  schema?: string;
+}
+
+export interface AlterTableParams {
+  tableName: string;
+  operation: string;
+  details: string;
+  schema?: string;
+}
+
+export interface InsertParams {
+  table: string;
+  data: Record<string, any>;
+  schema?: string;
+}
+
+export interface UpdateParams {
+  table: string;
+  data: Record<string, any>;
+  where: string;
+  schema?: string;
+}
+
+export interface DeleteParams {
+  table: string;
+  where: string;
+  schema?: string;
+}
+
+export interface MigrationInfo {
+  id: string;
+  name: string;
+  timestamp: string;
+  applied: boolean;
+  sql?: string;
+}
+
+export interface TriggerInfo {
+  name: string;
+  table: string;
+  function: string;
+  when: string;
+  events: string[];
+  forEach: string;
+  condition?: string;
 } 
