@@ -1,0 +1,534 @@
+import { PostgresService } from './postgres-service.js';
+import {
+  CreateTableParams,
+  AddColumnParams,
+  RelationshipParams,
+  IntegrationResult,
+  ExecutionResult,
+  ChangePreview,
+  ConsistencyReport,
+  OptimizationReport,
+  OptimizationSuggestion,
+  SafeExecutionResult,
+  WorkflowResult,
+  ValidationResult,
+  SchemaAnalysis,
+  TableColumn
+} from '../types/index.js';
+import { logger } from '../utils/index.js';
+
+// Import existing Hasura service - we'll need to check what's available
+// For now, I'll create a placeholder interface
+interface HasuraService {
+  createMigration(name: string, sql: string): Promise<string>;
+  updateTableMetadata(tableName: string, schema: string, metadata: any): Promise<boolean>;
+  getMigrations(): Promise<Array<{ name: string; timestamp: string }>>;
+  deleteMigration(migrationId: string): Promise<void>;
+  applyMigrations(): Promise<void>;
+  rollbackMigration(migrationId: string): Promise<void>;
+}
+
+export class IntegrationService {
+  constructor(
+    private hasuraService: HasuraService,
+    private postgresService: PostgresService
+  ) {}
+
+  // Unified operations that handle both Hasura and PostgreSQL
+  async createTableWithMigration(params: CreateTableParams): Promise<IntegrationResult> {
+    const startTime = Date.now();
+    
+    try {
+      // 1. Generate SQL for table creation
+      const sql = this.generateCreateTableSQL(params);
+      
+      // 2. Validate SQL
+      const validation = await this.postgresService.validateSQL(sql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL: ${validation.errors.join(', ')}`);
+      }
+      
+      // 3. Preview changes
+      const preview = await this.previewChanges(sql);
+      
+      // 4. Execute on database if requested
+      let executed = false;
+      if (params.executeImmediately) {
+        const execution = await this.postgresService.execute(sql);
+        if (!execution.success) {
+          throw new Error(`Database execution failed: ${execution.error}`);
+        }
+        executed = true;
+      }
+      
+      // 5. Create migration file
+      const migrationName = `create_table_${params.name}_${Date.now()}`;
+      const migrationId = await this.hasuraService.createMigration(migrationName, sql);
+      
+      // 6. Update Hasura metadata
+      const metadataUpdated = await this.hasuraService.updateTableMetadata(
+        params.name,
+        params.schema || 'public',
+        {
+          table: { name: params.name, schema: params.schema || 'public' },
+          configuration: {
+            custom_root_fields: {},
+            custom_column_names: {}
+          }
+        }
+      );
+      
+      logger.info(`Table ${params.name} created successfully in ${Date.now() - startTime}ms`);
+      
+      return {
+        executed,
+        migrationCreated: migrationId,
+        metadataUpdated,
+        preview
+      };
+    } catch (error) {
+      logger.error('Create table with migration failed:', error);
+      return {
+        executed: false,
+        metadataUpdated: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  async addColumnWithMigration(params: AddColumnParams): Promise<IntegrationResult> {
+    const startTime = Date.now();
+    
+    try {
+      // 1. Generate SQL for adding column
+      const sql = this.generateAddColumnSQL(params);
+      
+      // 2. Validate SQL
+      const validation = await this.postgresService.validateSQL(sql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL: ${validation.errors.join(', ')}`);
+      }
+      
+      // 3. Preview changes
+      const preview = await this.previewChanges(sql);
+      
+      // 4. Execute on database if requested
+      let executed = false;
+      if (params.executeImmediately) {
+        const execution = await this.postgresService.execute(sql);
+        if (!execution.success) {
+          throw new Error(`Database execution failed: ${execution.error}`);
+        }
+        executed = true;
+      }
+      
+      // 5. Create migration file
+      const migrationName = `add_column_${params.column.name}_to_${params.table}_${Date.now()}`;
+      const migrationId = await this.hasuraService.createMigration(migrationName, sql);
+      
+      logger.info(`Column ${params.column.name} added to ${params.table} successfully in ${Date.now() - startTime}ms`);
+      
+      return {
+        executed,
+        migrationCreated: migrationId,
+        metadataUpdated: true,
+        preview
+      };
+    } catch (error) {
+      logger.error('Add column with migration failed:', error);
+      return {
+        executed: false,
+        metadataUpdated: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  async createRelationshipWithMigration(params: RelationshipParams): Promise<IntegrationResult> {
+    const startTime = Date.now();
+    
+    try {
+      // 1. Generate SQL for foreign key constraint
+      const sql = this.generateRelationshipSQL(params);
+      
+      // 2. Validate SQL
+      const validation = await this.postgresService.validateSQL(sql);
+      if (!validation.isValid) {
+        throw new Error(`Invalid SQL: ${validation.errors.join(', ')}`);
+      }
+      
+      // 3. Preview changes
+      const preview = await this.previewChanges(sql);
+      
+      // 4. Execute on database if requested
+      let executed = false;
+      if (params.executeImmediately) {
+        const execution = await this.postgresService.execute(sql);
+        if (!execution.success) {
+          throw new Error(`Database execution failed: ${execution.error}`);
+        }
+        executed = true;
+      }
+      
+      // 5. Create migration file
+      const migrationName = `create_relationship_${params.name}_${Date.now()}`;
+      const migrationId = await this.hasuraService.createMigration(migrationName, sql);
+      
+      // 6. Update Hasura metadata for relationship
+      const metadataUpdated = await this.hasuraService.updateTableMetadata(
+        params.sourceTable,
+        params.schema || 'public',
+        {
+          [params.type === 'object' ? 'object_relationships' : 'array_relationships']: [{
+            name: params.name,
+            using: {
+              foreign_key_constraint_on: Object.keys(params.columnMapping)[0]
+            }
+          }]
+        }
+      );
+      
+      logger.info(`Relationship ${params.name} created successfully in ${Date.now() - startTime}ms`);
+      
+      return {
+        executed,
+        migrationCreated: migrationId,
+        metadataUpdated,
+        preview
+      };
+    } catch (error) {
+      logger.error('Create relationship with migration failed:', error);
+      return {
+        executed: false,
+        metadataUpdated: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  // Validation workflows
+  async validateAndExecute(sql: string, createMigration: boolean = false): Promise<ExecutionResult> {
+    try {
+      // 1. Validate SQL syntax
+      const validation = await this.postgresService.validateSQL(sql);
+      if (!validation.isValid) {
+        return {
+          success: false,
+          executionTime: 0,
+          error: `Validation failed: ${validation.errors.join(', ')}`
+        };
+      }
+      
+      // 2. Execute SQL
+      const execution = await this.postgresService.execute(sql);
+      
+      // 3. Create migration if requested and execution was successful
+      if (createMigration && execution.success) {
+        const migrationName = `custom_migration_${Date.now()}`;
+        const migrationId = await this.hasuraService.createMigration(migrationName, sql);
+        execution.migrationCreated = migrationId;
+      }
+      
+      return execution;
+    } catch (error) {
+      logger.error('Validate and execute failed:', error);
+      return {
+        success: false,
+        executionTime: 0,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  async previewChanges(sql: string): Promise<ChangePreview> {
+    try {
+      // Use EXPLAIN to understand what the query will do
+      const plan = await this.postgresService.explainQuery(sql);
+      
+      // Extract affected tables from the SQL (basic parsing)
+      const affectedTables = this.extractAffectedTables(sql);
+      
+      // Estimate impact based on query type
+      const estimatedImpact = this.estimateImpact(sql, plan);
+      
+      // Generate warnings
+      const warnings = this.generateWarnings(sql, plan);
+      
+      return {
+        sql,
+        affectedTables,
+        estimatedImpact,
+        warnings
+      };
+    } catch (error) {
+      logger.error('Preview changes failed:', error);
+      return {
+        sql,
+        affectedTables: [],
+        estimatedImpact: 'Unknown impact - preview failed',
+        warnings: ['Could not generate preview due to error']
+      };
+    }
+  }
+
+  // Analysis workflows
+  async analyzeSchemaConsistency(): Promise<ConsistencyReport> {
+    try {
+      const issues: Array<{ type: string; description: string; severity: 'error' | 'warning' }> = [];
+      
+      // Get database schema
+      const tables = await this.postgresService.listTables();
+      const relationships = await this.postgresService.getRelationships();
+      
+      // Check for missing indexes on foreign keys
+      for (const relationship of relationships) {
+        const indexes = await this.postgresService.getIndexes();
+        const hasIndex = indexes.some(idx => 
+          idx.table === relationship.sourceTable && 
+          idx.columns.includes(Object.keys(relationship.columns)[0])
+        );
+        
+        if (!hasIndex) {
+          issues.push({
+            type: 'missing_index',
+            description: `Foreign key ${Object.keys(relationship.columns)[0]} in table ${relationship.sourceTable} lacks an index`,
+            severity: 'warning'
+          });
+        }
+      }
+      
+      // Check for tables without primary keys
+      for (const tableName of tables) {
+        const tableInfo = await this.postgresService.getTableSchema(tableName);
+        const hasPrimaryKey = tableInfo.columns.some(col => col.primaryKey);
+        
+        if (!hasPrimaryKey) {
+          issues.push({
+            type: 'missing_primary_key',
+            description: `Table ${tableName} lacks a primary key`,
+            severity: 'error'
+          });
+        }
+      }
+      
+      return {
+        consistent: issues.filter(i => i.severity === 'error').length === 0,
+        issues
+      };
+    } catch (error) {
+      logger.error('Schema consistency analysis failed:', error);
+      return {
+        consistent: false,
+        issues: [{
+          type: 'analysis_error',
+          description: 'Failed to analyze schema consistency',
+          severity: 'error'
+        }]
+      };
+    }
+  }
+
+  async optimizeSchema(): Promise<OptimizationReport> {
+    try {
+      const applied: OptimizationSuggestion[] = [];
+      const failed: Array<{ suggestion: OptimizationSuggestion; error: string }> = [];
+      
+      // Get performance analysis
+      const performance = await this.postgresService.analyzePerformance();
+      
+      // Generate optimization suggestions
+      const suggestions = this.generateOptimizationSuggestions(performance);
+      
+      // Apply high-priority suggestions automatically
+      for (const suggestion of suggestions.filter(s => s.priority === 'high')) {
+        try {
+          if (suggestion.sql) {
+            const result = await this.postgresService.execute(suggestion.sql);
+            if (result.success) {
+              applied.push(suggestion);
+            } else {
+              failed.push({ suggestion, error: result.error || 'Unknown error' });
+            }
+          }
+        } catch (error) {
+          failed.push({ 
+            suggestion, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+          });
+        }
+      }
+      
+      return { applied, failed };
+    } catch (error) {
+      logger.error('Schema optimization failed:', error);
+      return {
+        applied: [],
+        failed: [{
+          suggestion: {
+            type: 'performance',
+            priority: 'high',
+            description: 'Schema optimization failed',
+            impact: 'Unknown'
+          },
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }]
+      };
+    }
+  }
+
+  // Safe execution with rollback
+  async safeExecuteWithMigration(sql: string, migrationName: string): Promise<SafeExecutionResult> {
+    let migrationId: string | undefined;
+    
+    try {
+      // 1. Start transaction and execute SQL
+      const execution = await this.postgresService.execute(sql);
+      
+      if (!execution.success) {
+        throw new Error(execution.error || 'SQL execution failed');
+      }
+      
+      // 2. Create migration file
+      migrationId = await this.hasuraService.createMigration(migrationName, sql);
+      
+      return {
+        success: true,
+        migration: migrationId
+      };
+    } catch (error) {
+      logger.error('Safe execute with migration failed:', error);
+      
+      // 3. Clean up migration file if created
+      if (migrationId) {
+        try {
+          await this.hasuraService.deleteMigration(migrationId);
+        } catch (cleanupError) {
+          logger.error('Failed to clean up migration file:', cleanupError);
+        }
+      }
+      
+      return {
+        success: false,
+        rollbackPerformed: !!migrationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  // Helper methods
+  private generateCreateTableSQL(params: CreateTableParams): string {
+    const schema = params.schema || 'public';
+    const columns = params.columns.map(col => {
+      let columnDef = `"${col.name}" ${col.type}`;
+      
+      if (!col.nullable) columnDef += ' NOT NULL';
+      if (col.default) columnDef += ` DEFAULT ${col.default}`;
+      if (col.unique) columnDef += ' UNIQUE';
+      
+      return columnDef;
+    }).join(',\n  ');
+    
+    const primaryKeys = params.columns.filter(col => col.primaryKey).map(col => col.name);
+    if (primaryKeys.length > 0) {
+      return `CREATE TABLE "${schema}"."${params.name}" (\n  ${columns},\n  PRIMARY KEY ("${primaryKeys.join('", "')}")\n);`;
+    }
+    
+    return `CREATE TABLE "${schema}"."${params.name}" (\n  ${columns}\n);`;
+  }
+
+  private generateAddColumnSQL(params: AddColumnParams): string {
+    const schema = params.schema || 'public';
+    let columnDef = `"${params.column.name}" ${params.column.type}`;
+    
+    if (!params.column.nullable) columnDef += ' NOT NULL';
+    if (params.column.default) columnDef += ` DEFAULT ${params.column.default}`;
+    if (params.column.unique) columnDef += ' UNIQUE';
+    
+    return `ALTER TABLE "${schema}"."${params.table}" ADD COLUMN ${columnDef};`;
+  }
+
+  private generateRelationshipSQL(params: RelationshipParams): string {
+    const schema = params.schema || 'public';
+    const sourceColumn = Object.keys(params.columnMapping)[0];
+    const targetColumn = Object.values(params.columnMapping)[0];
+    
+    return `ALTER TABLE "${schema}"."${params.sourceTable}" 
+            ADD CONSTRAINT "fk_${params.name}" 
+            FOREIGN KEY ("${sourceColumn}") 
+            REFERENCES "${schema}"."${params.targetTable}" ("${targetColumn}");`;
+  }
+
+  private extractAffectedTables(sql: string): string[] {
+    const tables: string[] = [];
+    const upperSQL = sql.toUpperCase();
+    
+    // Basic table extraction - this could be enhanced with a proper SQL parser
+    const tableRegex = /(?:FROM|JOIN|UPDATE|INSERT INTO|DELETE FROM)\s+(?:"?(\w+)"?\.)??"?(\w+)"?/gi;
+    let match;
+    
+    while ((match = tableRegex.exec(sql)) !== null) {
+      const tableName = match[2];
+      if (tableName && !tables.includes(tableName)) {
+        tables.push(tableName);
+      }
+    }
+    
+    return tables;
+  }
+
+  private estimateImpact(sql: string, plan: any): string {
+    const upperSQL = sql.toUpperCase();
+    
+    if (upperSQL.includes('CREATE TABLE')) {
+      return 'Low - Creating new table';
+    } else if (upperSQL.includes('DROP TABLE')) {
+      return 'High - Dropping table will remove all data';
+    } else if (upperSQL.includes('ALTER TABLE')) {
+      return 'Medium - Modifying table structure';
+    } else if (upperSQL.includes('CREATE INDEX')) {
+      return 'Low - Adding index for better performance';
+    } else if (upperSQL.includes('DELETE') || upperSQL.includes('UPDATE')) {
+      return 'High - Modifying existing data';
+    }
+    
+    return 'Medium - Unknown impact';
+  }
+
+  private generateWarnings(sql: string, plan: any): string[] {
+    const warnings: string[] = [];
+    const upperSQL = sql.toUpperCase();
+    
+    if (upperSQL.includes('DROP')) {
+      warnings.push('This operation will permanently delete data');
+    }
+    
+    if (upperSQL.includes('ALTER TABLE') && upperSQL.includes('DROP COLUMN')) {
+      warnings.push('Dropping columns will permanently delete data in those columns');
+    }
+    
+    if (plan.cost && plan.cost > 1000) {
+      warnings.push('This operation may be expensive and take significant time');
+    }
+    
+    return warnings;
+  }
+
+  private generateOptimizationSuggestions(performance: any): OptimizationSuggestion[] {
+    const suggestions: OptimizationSuggestion[] = [];
+    
+    // Suggest indexes for tables with low index usage
+    for (const table of performance.tableStats) {
+      if (table.indexUsage < 50 && table.rowCount > 1000) {
+        suggestions.push({
+          type: 'index',
+          priority: 'medium',
+          description: `Table ${table.table} has low index usage (${table.indexUsage}%)`,
+          impact: 'Could improve query performance significantly',
+          sql: `-- Consider adding indexes to frequently queried columns in ${table.table}`
+        });
+      }
+    }
+    
+    return suggestions;
+  }
+} 

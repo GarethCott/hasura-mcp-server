@@ -4,6 +4,24 @@ export interface HasuraConfig {
   projectPath: string;
 }
 
+// NEW: PostgreSQL Configuration
+export interface PostgresConfig {
+  connectionString: string;
+  poolSize?: number;
+  idleTimeoutMillis?: number;
+  connectionTimeoutMillis?: number;
+}
+
+// NEW: Database Connection Details
+export interface DatabaseConnection {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  ssl?: boolean;
+}
+
 export interface TableColumn {
   name: string;
   type: string;
@@ -72,13 +90,197 @@ export interface HasuraMetadata {
   }>;
 }
 
-export interface SchemaAnalysis {
-  tables: Array<{
+// NEW: Enhanced Schema Analysis
+export interface TableInfo {
+  name: string;
+  schema: string;
+  columns: TableColumn[];
+  indexes: IndexInfo[];
+  constraints: ConstraintInfo[];
+  rowCount?: number;
+}
+
+export interface RelationshipInfo {
+  name: string;
+  type: 'foreign_key' | 'one_to_one' | 'one_to_many' | 'many_to_many';
+  sourceTable: string;
+  targetTable: string;
+  columns: Record<string, string>;
+}
+
+export interface IndexInfo {
+  name: string;
+  table: string;
+  columns: string[];
+  unique: boolean;
+  type: string;
+}
+
+export interface ConstraintInfo {
+  name: string;
+  type: 'primary_key' | 'foreign_key' | 'unique' | 'check';
+  columns: string[];
+  referencedTable?: string;
+  referencedColumns?: string[];
+}
+
+export interface FunctionInfo {
+  name: string;
+  schema: string;
+  returnType: string;
+  parameters: Array<{
     name: string;
-    schema: string;
-    columns: TableColumn[];
-    relationships: RelationshipDefinition[];
-    permissions: PermissionDefinition[];
+    type: string;
   }>;
-  suggestions: string[];
+}
+
+export interface PerformanceMetrics {
+  slowQueries: Array<{
+    query: string;
+    avgTime: number;
+    calls: number;
+  }>;
+  tableStats: Array<{
+    table: string;
+    size: string;
+    rowCount: number;
+    indexUsage: number;
+  }>;
+  connectionStats: {
+    active: number;
+    idle: number;
+    total: number;
+  };
+}
+
+export interface OptimizationSuggestion {
+  type: 'index' | 'query' | 'schema' | 'performance';
+  priority: 'high' | 'medium' | 'low';
+  description: string;
+  impact: string;
+  sql?: string;
+}
+
+export interface SchemaAnalysis {
+  tables: TableInfo[];
+  relationships: RelationshipInfo[];
+  indexes: IndexInfo[];
+  functions: FunctionInfo[];
+  performance: PerformanceMetrics;
+  suggestions: OptimizationSuggestion[];
+}
+
+// NEW: Execution Results
+export interface ExecutionResult {
+  success: boolean;
+  rowsAffected?: number;
+  data?: any[];
+  executionTime: number;
+  migrationCreated?: string;
+  metadataUpdated?: boolean;
+  error?: string;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface QueryResult {
+  rows: any[];
+  rowCount: number;
+  fields: Array<{
+    name: string;
+    dataTypeID: number;
+  }>;
+}
+
+export interface TransactionOperation {
+  sql: string;
+  params?: any[];
+}
+
+export interface TransactionResult {
+  success: boolean;
+  results: QueryResult[];
+  error?: string;
+}
+
+export interface QueryPlan {
+  plan: any;
+  executionTime?: number;
+  cost?: number;
+}
+
+// NEW: Integration Types
+export interface CreateTableParams {
+  name: string;
+  columns: TableColumn[];
+  schema?: string;
+  executeImmediately?: boolean;
+}
+
+export interface AddColumnParams {
+  table: string;
+  column: TableColumn;
+  schema?: string;
+  executeImmediately?: boolean;
+}
+
+export interface RelationshipParams {
+  name: string;
+  type: 'object' | 'array';
+  sourceTable: string;
+  targetTable: string;
+  columnMapping: Record<string, string>;
+  schema?: string;
+  executeImmediately?: boolean;
+}
+
+export interface IntegrationResult {
+  executed: boolean;
+  migrationCreated?: string;
+  metadataUpdated: boolean;
+  preview?: ChangePreview;
+  error?: string;
+}
+
+export interface ChangePreview {
+  sql: string;
+  affectedTables: string[];
+  estimatedImpact: string;
+  warnings: string[];
+}
+
+export interface ConsistencyReport {
+  consistent: boolean;
+  issues: Array<{
+    type: string;
+    description: string;
+    severity: 'error' | 'warning';
+  }>;
+}
+
+export interface OptimizationReport {
+  applied: OptimizationSuggestion[];
+  failed: Array<{
+    suggestion: OptimizationSuggestion;
+    error: string;
+  }>;
+}
+
+export interface SafeExecutionResult {
+  success: boolean;
+  migration?: string;
+  rollbackPerformed?: boolean;
+  error?: string;
+}
+
+export interface WorkflowResult {
+  executed: boolean;
+  migrationCreated?: string;
+  metadataUpdated: boolean;
+  preview: ChangePreview;
+  error?: string;
 } 
