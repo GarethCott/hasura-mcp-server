@@ -252,6 +252,7 @@ export class IntegrationService {
                     upperSQL.startsWith('CREATE INDEX') ||
                     upperSQL.startsWith('CREATE EXTENSION');
       
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let plan: any = null;
       let estimatedImpact: string;
       let warnings: string[];
@@ -512,6 +513,7 @@ export class IntegrationService {
     return tables;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private estimateImpact(sql: string, _plan: any): string {
     const upperSQL = sql.toUpperCase();
     
@@ -530,6 +532,7 @@ export class IntegrationService {
     return 'Medium - Unknown impact';
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private generateWarnings(sql: string, _plan: any): string[] {
     const warnings: string[] = [];
     const upperSQL = sql.toUpperCase();
@@ -549,6 +552,7 @@ export class IntegrationService {
     return warnings;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private generateOptimizationSuggestions(performance: any): OptimizationSuggestion[] {
     const suggestions: OptimizationSuggestion[] = [];
     

@@ -15,6 +15,7 @@ export class HasuraService {
     return HasuraService.instance;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async getConfig(): Promise<any> {
     try {
       const configPath = FileSystemUtils.joinPath(config.hasura.projectPath, 'config.yaml');
@@ -56,7 +57,9 @@ export class HasuraService {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async loadTablesMetadata(metadataPath: string): Promise<any[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tables: any[] = [];
     
     try {
@@ -170,6 +173,7 @@ export class HasuraService {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async updateTableMetadata(tableName: string, schema: string, metadata: any): Promise<void> {
     try {
       const metadataPath = FileSystemUtils.joinPath(

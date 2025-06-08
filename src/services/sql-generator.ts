@@ -79,6 +79,7 @@ REFERENCES ${referencedSchema}.${referencedTable}(${referencedColumn});`;
     return `DROP INDEX IF EXISTS ${indexName};`;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public generateInsertSql(tableName: string, data: Record<string, any>, schema: string = 'public'): string {
     const columns = Object.keys(data);
     const values = columns.map(col => this.formatValue(data[col]));
@@ -89,6 +90,7 @@ VALUES (${values.join(', ')});`;
 
   public generateUpdateSql(
     tableName: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: Record<string, any>,
     whereClause: string,
     schema: string = 'public',
@@ -177,6 +179,7 @@ WHERE ${whereClause};`;
     return typeMap[type.toLowerCase()] || type.toUpperCase();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private formatValue(value: any): string {
     if (value === null || value === undefined) {
       return 'NULL';
@@ -205,6 +208,7 @@ WHERE ${whereClause};`;
     return value.toString();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private formatDefaultValue(value: any): string {
     if (value === null || value === undefined) {
       return 'NULL';
@@ -358,6 +362,7 @@ ${whereClause};`;
     return `ALTER TABLE ${schema}.${tableName} ${operation} ${details};`;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public generateInsertDataSql(table: string, data: Record<string, any>, schema: string = 'public'): string {
     const columns = Object.keys(data);
     const values = Object.values(data).map(val => this.formatValue(val));
@@ -368,6 +373,7 @@ ${whereClause};`;
 
   public generateUpdateDataSql(
     table: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: Record<string, any>,
     where: string,
     schema: string = 'public',

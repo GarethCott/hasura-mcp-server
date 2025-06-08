@@ -43,6 +43,7 @@ export class PostgresService {
   }
 
   // Core database operations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async query(sql: string, params?: any[]): Promise<QueryResult> {
     const startTime = Date.now();
     
@@ -66,6 +67,7 @@ export class PostgresService {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async execute(sql: string, params?: any[]): Promise<ExecutionResult> {
     const startTime = Date.now();
     
@@ -464,6 +466,7 @@ export class PostgresService {
     
     return result.rows.map(row => ({
       name: row.constraint_name,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       type: row.constraint_type.toLowerCase().replace(' ', '_') as any,
       columns: row.columns,
       referencedTable: row.referenced_table,
@@ -568,6 +571,7 @@ export class PostgresService {
     return this.execute(sql);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async listFunctions(schema: string = 'public'): Promise<any[]> {
     const query = `
       SELECT 

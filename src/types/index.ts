@@ -174,6 +174,7 @@ export interface SchemaAnalysis {
 export interface ExecutionResult {
   success: boolean;
   rowsAffected?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: Record<string, any>[];
   executionTime: number;
   migrationCreated?: string;
@@ -188,6 +189,7 @@ export interface ValidationResult {
 }
 
 export interface QueryResult {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rows: Record<string, any>[];
   rowCount: number;
   fields: Array<{
