@@ -34,31 +34,31 @@ export class Logger {
     return level >= this.logLevel;
   }
 
-  private formatMessage(level: string, message: string, context?: any): string {
+  private formatMessage(level: string, message: string, context?: unknown): string {
     const timestamp = new Date().toISOString();
     const contextStr = context ? ` ${JSON.stringify(context)}` : '';
     return `[${timestamp}] ${level}: ${message}${contextStr}`;
   }
 
-  public debug(message: string, context?: any): void {
+  public debug(message: string, context?: unknown): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
       process.stderr.write(this.formatMessage('DEBUG', message, context) + '\n');
     }
   }
 
-  public info(message: string, context?: any): void {
+  public info(message: string, context?: unknown): void {
     if (this.shouldLog(LogLevel.INFO)) {
       process.stderr.write(this.formatMessage('INFO', message, context) + '\n');
     }
   }
 
-  public warn(message: string, context?: any): void {
+  public warn(message: string, context?: unknown): void {
     if (this.shouldLog(LogLevel.WARN)) {
       process.stderr.write(this.formatMessage('WARN', message, context) + '\n');
     }
   }
 
-  public error(message: string, error?: Error | any): void {
+  public error(message: string, error?: Error | unknown): void {
     if (this.shouldLog(LogLevel.ERROR)) {
       const errorContext = error instanceof Error 
         ? { message: error.message, stack: error.stack }

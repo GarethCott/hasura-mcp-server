@@ -54,10 +54,10 @@ export interface RelationshipDefinition {
 export interface PermissionDefinition {
   role: string;
   permission: 'select' | 'insert' | 'update' | 'delete';
-  filter?: Record<string, any>;
+  filter?: Record<string, unknown>;
   columns?: string[] | '*';
-  check?: Record<string, any>;
-  set?: Record<string, any>;
+  check?: Record<string, unknown>;
+  set?: Record<string, unknown>;
 }
 
 export interface MigrationFile {
@@ -74,13 +74,13 @@ export interface HasuraMetadata {
     kind: string;
     tables: Array<{
       table: { name: string; schema: string };
-      configuration?: any;
-      object_relationships?: any[];
-      array_relationships?: any[];
-      insert_permissions?: any[];
-      select_permissions?: any[];
-      update_permissions?: any[];
-      delete_permissions?: any[];
+      configuration?: unknown;
+      object_relationships?: unknown[];
+      array_relationships?: unknown[];
+      insert_permissions?: unknown[];
+      select_permissions?: unknown[];
+      update_permissions?: unknown[];
+      delete_permissions?: unknown[];
     }>;
     configuration: {
       connection_info: {
@@ -174,7 +174,7 @@ export interface SchemaAnalysis {
 export interface ExecutionResult {
   success: boolean;
   rowsAffected?: number;
-  data?: any[];
+  data?: Record<string, any>[];
   executionTime: number;
   migrationCreated?: string;
   metadataUpdated?: boolean;
@@ -188,7 +188,7 @@ export interface ValidationResult {
 }
 
 export interface QueryResult {
-  rows: any[];
+  rows: Record<string, any>[];
   rowCount: number;
   fields: Array<{
     name: string;
@@ -198,7 +198,7 @@ export interface QueryResult {
 
 export interface TransactionOperation {
   sql: string;
-  params?: any[];
+  params?: unknown[];
 }
 
 export interface TransactionResult {
@@ -208,7 +208,7 @@ export interface TransactionResult {
 }
 
 export interface QueryPlan {
-  plan: any;
+  plan: unknown;
   executionTime?: number;
   cost?: number;
 }
@@ -326,13 +326,13 @@ export interface AlterTableParams {
 
 export interface InsertParams {
   table: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   schema?: string;
 }
 
 export interface UpdateParams {
   table: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   where: string;
   schema?: string;
 }

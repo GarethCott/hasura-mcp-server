@@ -266,7 +266,7 @@ export class IntegrationService {
           plan = await this.postgresService.explainQuery(sql);
           estimatedImpact = this.estimateImpact(sql, plan);
           warnings = this.generateWarnings(sql, plan);
-        } catch (explainError) {
+        } catch {
           // If EXPLAIN fails, fall back to static analysis
           estimatedImpact = 'Could not analyze query execution plan';
           warnings = ['Query execution plan could not be generated'];
@@ -433,7 +433,7 @@ export class IntegrationService {
 
   // Helper methods
   private generateCreateTableSQL(params: CreateTableParams): string {
-    const schema = params.schema || 'public';
+    const _schema = params.schema || 'public';
     
     // Validate that we have columns
     if (!params.columns || params.columns.length === 0) {
@@ -496,7 +496,7 @@ export class IntegrationService {
 
   private extractAffectedTables(sql: string): string[] {
     const tables: string[] = [];
-    const upperSQL = sql.toUpperCase();
+    const _upperSQL = sql.toUpperCase();
     
     // Basic table extraction - this could be enhanced with a proper SQL parser
     const tableRegex = /(?:FROM|JOIN|UPDATE|INSERT INTO|DELETE FROM)\s+(?:"?(\w+)"?\.)??"?(\w+)"?/gi;
@@ -512,7 +512,7 @@ export class IntegrationService {
     return tables;
   }
 
-  private estimateImpact(sql: string, plan: any): string {
+  private estimateImpact(sql: string, _plan: any): string {
     const upperSQL = sql.toUpperCase();
     
     if (upperSQL.includes('CREATE TABLE')) {
@@ -530,7 +530,7 @@ export class IntegrationService {
     return 'Medium - Unknown impact';
   }
 
-  private generateWarnings(sql: string, plan: any): string[] {
+  private generateWarnings(sql: string, _plan: any): string[] {
     const warnings: string[] = [];
     const upperSQL = sql.toUpperCase();
     
@@ -542,7 +542,7 @@ export class IntegrationService {
       warnings.push('Dropping columns will permanently delete data in those columns');
     }
     
-    if (plan.cost && plan.cost > 1000) {
+    if (_plan.cost && _plan.cost > 1000) {
       warnings.push('This operation may be expensive and take significant time');
     }
     

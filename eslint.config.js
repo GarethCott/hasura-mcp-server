@@ -43,6 +43,16 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['build/**/*', 'node_modules/**/*', '*.js'],
+    ignores: [
+      'build/**/*', 
+      'node_modules/**/*', 
+      '*.js',
+      '*.d.ts',
+      'coverage/**/*',
+      'dist/**/*',
+      '.env',
+      '.env.local',
+      '.env.*.local'
+    ],
   }
 ); 

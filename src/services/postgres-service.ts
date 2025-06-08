@@ -293,7 +293,7 @@ export class PostgresService {
         this.query(connectionStatsQuery),
       ]);
 
-      const connStats = connectionStats.rows.reduce((acc, row) => {
+      const connStats = connectionStats.rows.reduce((acc: { active: number; idle: number; total: number }, row) => {
         if (row.state === 'active') acc.active = row.count;
         else if (row.state === 'idle') acc.idle = row.count;
         acc.total += row.count;
