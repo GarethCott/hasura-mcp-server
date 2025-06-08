@@ -1,9 +1,7 @@
 import { AbstractBaseTool } from '../base/base-tool.js';
 import { ToolResult } from '../base/tool-types.js';
 import { ValidationUtils } from '../utils/validation.js';
-import { PostgresService } from '../../../services/postgres-service.js';
 import { SqlGenerator } from '../../../services/sql-generator.js';
-import { config } from '../../../config/index.js';
 
 export class InsertDataTool extends AbstractBaseTool {
   public readonly name = 'insert_data';
@@ -14,15 +12,33 @@ export class InsertDataTool extends AbstractBaseTool {
       table: { type: 'string', description: 'Table name' },
       schema: { type: 'string', description: 'Database schema', default: 'public' },
       data: { type: 'object', description: 'Data to insert as key-value pairs' },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: true,
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing',
+        default: false,
+      },
+      createMigration: { 
+        type: 'boolean', 
+        description: 'Create migration file', 
+        default: false,
+      },
     },
     required: ['table', 'data'],
   } as const;
 
   protected async executeImpl(args: Record<string, unknown>): Promise<ToolResult> {
-    const { table, schema = 'public', data } = args as {
+    const { table, schema = 'public', data, executeImmediately = true, previewOnly = false, createMigration = false } = args as {
       table: string;
       schema?: string;
       data: Record<string, unknown>;
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
+      createMigration?: boolean;
     };
 
     this.validateRequiredArgs(args, ['table', 'data']);
@@ -37,24 +53,50 @@ export class InsertDataTool extends AbstractBaseTool {
     }
 
     try {
-      const postgresService = new PostgresService(config.postgres);
       const sqlGenerator = SqlGenerator.getInstance();
-
       const sql = sqlGenerator.generateInsertDataSql(table, data, schema);
-      const result = await postgresService.execute(sql);
 
-      if (!result.success) {
-        return this.createErrorResult(`Failed to insert data: ${result.error}`);
+      // Preview mode - show what would happen
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { preview, sql });
+      }
+
+      let executed = false;
+      let executionResult = null;
+
+      // Execute if requested
+      if (executeImmediately) {
+        const result = await this.executeSQL(sql);
+        if (!result.success) {
+          return this.createErrorResult(`Execution failed: ${result.error}`);
+        }
+        executed = true;
+        executionResult = result;
+      }
+
+      // Create migration if requested
+      let migrationResult;
+      if (createMigration) {
+        const MigrationHelpers = await import('../utils/migration-helpers.js').then(m => m.MigrationHelpers);
+        migrationResult = await MigrationHelpers.createMigration(
+          'insert_data',
+          `insert_data_${table}`,
+          sql,
+          `-- Revert: Delete inserted data from ${schema}.${table}`,
+        );
       }
 
       return this.createSuccessResult(
-        `Data inserted successfully into ${schema}.${table}`,
+        `Data ${executed ? 'inserted' : 'prepared for insertion'} into ${schema}.${table}`,
         {
           table,
           schema,
-          rowsAffected: result.rowsAffected || 0,
+          executed,
+          rowsAffected: executed ? executionResult?.rowsAffected || 0 : 0,
           insertedData: data,
           sql,
+          ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },
       );
     } catch (error) {
@@ -73,16 +115,34 @@ export class UpdateDataTool extends AbstractBaseTool {
       schema: { type: 'string', description: 'Database schema', default: 'public' },
       data: { type: 'object', description: 'Data to update as key-value pairs' },
       where: { type: 'string', description: 'WHERE clause condition' },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: true,
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing',
+        default: false,
+      },
+      createMigration: { 
+        type: 'boolean', 
+        description: 'Create migration file', 
+        default: false,
+      },
     },
     required: ['table', 'data', 'where'],
   } as const;
 
   protected async executeImpl(args: Record<string, unknown>): Promise<ToolResult> {
-    const { table, schema = 'public', data, where } = args as {
+    const { table, schema = 'public', data, where, executeImmediately = true, previewOnly = false, createMigration = false } = args as {
       table: string;
       schema?: string;
       data: Record<string, unknown>;
       where: string;
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
+      createMigration?: boolean;
     };
 
     this.validateRequiredArgs(args, ['table', 'data', 'where']);
@@ -101,25 +161,51 @@ export class UpdateDataTool extends AbstractBaseTool {
     }
 
     try {
-      const postgresService = new PostgresService(config.postgres);
       const sqlGenerator = SqlGenerator.getInstance();
-
       const sql = sqlGenerator.generateUpdateDataSql(table, data, where, schema);
-      const result = await postgresService.execute(sql);
 
-      if (!result.success) {
-        return this.createErrorResult(`Failed to update data: ${result.error}`);
+      // Preview mode - show what would happen
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { preview, sql });
+      }
+
+      let executed = false;
+      let executionResult = null;
+
+      // Execute if requested
+      if (executeImmediately) {
+        const result = await this.executeSQL(sql);
+        if (!result.success) {
+          return this.createErrorResult(`Execution failed: ${result.error}`);
+        }
+        executed = true;
+        executionResult = result;
+      }
+
+      // Create migration if requested
+      let migrationResult;
+      if (createMigration) {
+        const MigrationHelpers = await import('../utils/migration-helpers.js').then(m => m.MigrationHelpers);
+        migrationResult = await MigrationHelpers.createMigration(
+          'update_data',
+          `update_data_${table}`,
+          sql,
+          '-- Revert: Manual rollback required for data updates',
+        );
       }
 
       return this.createSuccessResult(
-        `Data updated successfully in ${schema}.${table}`,
+        `Data ${executed ? 'updated' : 'prepared for update'} in ${schema}.${table}`,
         {
           table,
           schema,
-          rowsAffected: result.rowsAffected || 0,
+          executed,
+          rowsAffected: executed ? executionResult?.rowsAffected || 0 : 0,
           updatedData: data,
           whereClause: where,
           sql,
+          ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },
       );
     } catch (error) {
@@ -137,15 +223,33 @@ export class DeleteDataTool extends AbstractBaseTool {
       table: { type: 'string', description: 'Table name' },
       schema: { type: 'string', description: 'Database schema', default: 'public' },
       where: { type: 'string', description: 'WHERE clause condition (required for safety)' },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: true,
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing',
+        default: false,
+      },
+      createMigration: { 
+        type: 'boolean', 
+        description: 'Create migration file', 
+        default: false,
+      },
     },
     required: ['table', 'where'],
   } as const;
 
   protected async executeImpl(args: Record<string, unknown>): Promise<ToolResult> {
-    const { table, schema = 'public', where } = args as {
+    const { table, schema = 'public', where, executeImmediately = true, previewOnly = false, createMigration = false } = args as {
       table: string;
       schema?: string;
       where: string;
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
+      createMigration?: boolean;
     };
 
     this.validateRequiredArgs(args, ['table', 'where']);
@@ -160,24 +264,50 @@ export class DeleteDataTool extends AbstractBaseTool {
     }
 
     try {
-      const postgresService = new PostgresService(config.postgres);
       const sqlGenerator = SqlGenerator.getInstance();
-
       const sql = sqlGenerator.generateDeleteDataSql(table, where, schema);
-      const result = await postgresService.execute(sql);
 
-      if (!result.success) {
-        return this.createErrorResult(`Failed to delete data: ${result.error}`);
+      // Preview mode - show what would happen
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { preview, sql });
+      }
+
+      let executed = false;
+      let executionResult = null;
+
+      // Execute if requested
+      if (executeImmediately) {
+        const result = await this.executeSQL(sql);
+        if (!result.success) {
+          return this.createErrorResult(`Execution failed: ${result.error}`);
+        }
+        executed = true;
+        executionResult = result;
+      }
+
+      // Create migration if requested
+      let migrationResult;
+      if (createMigration) {
+        const MigrationHelpers = await import('../utils/migration-helpers.js').then(m => m.MigrationHelpers);
+        migrationResult = await MigrationHelpers.createMigration(
+          'delete_data',
+          `delete_data_${table}`,
+          sql,
+          '-- Revert: Manual rollback required for data deletions',
+        );
       }
 
       return this.createSuccessResult(
-        `Data deleted successfully from ${schema}.${table}`,
+        `Data ${executed ? 'deleted' : 'prepared for deletion'} from ${schema}.${table}`,
         {
           table,
           schema,
-          rowsAffected: result.rowsAffected || 0,
+          executed,
+          rowsAffected: executed ? executionResult?.rowsAffected || 0 : 0,
           whereClause: where,
           sql,
+          ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },
       );
     } catch (error) {

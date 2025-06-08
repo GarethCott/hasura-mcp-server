@@ -10,6 +10,63 @@ A comprehensive Model Context Protocol (MCP) server that enables AI assistants t
 📊 **Real-time Analysis**: Live schema analysis and performance optimization suggestions  
 🎯 **Production Ready**: 31 database tools with flexible execution options  
 
+## 📚 Documentation
+
+Comprehensive documentation is available in the [`docs/`](./docs/) folder:
+
+- **[Tools Reference](./docs/TOOLS_REFERENCE.md)** - Complete guide to all 31 tools and live execution capabilities
+- **[API Documentation](./docs/API.md)** - JSON-RPC interface, request/response formats, and SDK examples
+- **[Configuration Guide](./docs/CONFIGURATION.md)** - Setup, environment variables, and deployment options
+- **[Live Execution Testing Guide](./docs/LIVE_EXECUTION_TESTING_GUIDE.md)** - Testing workflows and examples
+
+## 🚀 Quick Start
+
+### 1. Installation
+
+```bash
+cd mcp
+npm install
+npm run build
+```
+
+### 2. Basic Usage
+
+```bash
+# Run with PostgreSQL only
+node build/index.js "postgresql://user:password@localhost:5432/database"
+
+# Run with Hasura integration
+node build/index.js "postgresql://user:password@localhost:5432/database" \
+  --hasura-endpoint="http://localhost:8080" \
+  --hasura-admin-secret="your-admin-secret"
+```
+
+### 3. Test Connection
+
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"test_connection","arguments":{}}}' | node build/index.js "postgresql://..."
+```
+
+## 🎛️ Live Execution Modes
+
+**9 enhanced tools** support three execution modes:
+
+1. **Preview Mode** (`previewOnly: true`) - Analyze impact without changes
+2. **Migration-Only Mode** (`executeImmediately: false`) - Create migrations only (safe default)
+3. **Live Execution Mode** (`executeImmediately: true`) - Execute immediately + create migrations
+
+### Enhanced Tools with Live Execution ⚡
+
+- `create_table` - Table creation with metadata
+- `add_column` - Column addition with validation
+- `create_index` - Index creation with optimization
+- `create_function` - PostgreSQL function creation
+- `create_trigger` - Database trigger management
+- `alter_table` - Table structure modification
+- `insert_data` - Data insertion with safety checks
+- `update_data` - Data updates with WHERE validation
+- `delete_data` - Data deletion with mandatory WHERE clause
+
 ## 🏗️ Architecture
 
 This MCP server follows a modular architecture with clear separation of concerns:

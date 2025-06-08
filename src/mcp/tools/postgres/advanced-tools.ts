@@ -19,6 +19,16 @@ export class CreateFunctionTool extends AbstractBaseTool {
       language: { type: 'string', description: 'Function language', default: 'plpgsql' },
       body: { type: 'string', description: 'Function body' },
       options: { type: 'string', description: 'Additional options' },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: true,
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing',
+        default: false,
+      },
       createMigration: { type: 'boolean', description: 'Create migration', default: true },
     },
     required: ['name', 'parameters', 'returnType', 'body'],
@@ -33,6 +43,8 @@ export class CreateFunctionTool extends AbstractBaseTool {
       language = 'plpgsql',
       body,
       options,
+      executeImmediately = true,
+      previewOnly = false,
       createMigration = true,
     } = args as {
       name: string;
@@ -42,6 +54,8 @@ export class CreateFunctionTool extends AbstractBaseTool {
       language?: string;
       body: string;
       options?: string;
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
       createMigration?: boolean;
     };
 
@@ -52,40 +66,55 @@ export class CreateFunctionTool extends AbstractBaseTool {
       return this.createErrorResult(nameValidation.error!);
     }
 
-         try {
-       const postgresService = new PostgresService(config.postgres);
-       const sqlGenerator = SqlGenerator.getInstance();
+    try {
+      const sqlGenerator = SqlGenerator.getInstance();
 
-              const sql = sqlGenerator.generateCreateFunctionSql(
-         name,
-         parameters,
-         returnType,
-         language,
-         body,
-         options,
-         schema,
-       );
+      const sql = sqlGenerator.generateCreateFunctionSql(
+        name,
+        parameters,
+        returnType,
+        language,
+        body,
+        options,
+        schema,
+      );
 
-      const result = await postgresService.execute(sql);
-      if (!result.success) {
-        return this.createErrorResult(`Failed to create function: ${result.error}`);
+      // Preview mode - show what would happen
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { preview, sql });
       }
 
+      let executed = false;
+      let executionResult = null;
+
+      // Execute if requested
+      if (executeImmediately) {
+        const result = await this.executeSQL(sql);
+        if (!result.success) {
+          return this.createErrorResult(`Execution failed: ${result.error}`);
+        }
+        executed = true;
+        executionResult = result;
+      }
+
+      // Create migration if requested
       let migrationResult;
       if (createMigration) {
-                 migrationResult = await MigrationHelpers.createMigration(
-           'create_function',
-           `create_function_${name}`,
-           sql,
-           sqlGenerator.generateDropFunctionSql(name, schema),
-         );
+        migrationResult = await MigrationHelpers.createMigration(
+          'create_function',
+          `create_function_${name}`,
+          sql,
+          sqlGenerator.generateDropFunctionSql(name, schema),
+        );
       }
 
       return this.createSuccessResult(
-        `Function ${schema}.${name} created successfully`,
+        `Function ${schema}.${name} ${executed ? 'created' : 'prepared for creation'}`,
         {
           functionName: name,
           schema,
+          executed,
           sql,
           ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },
@@ -109,6 +138,16 @@ export class CreateTriggerTool extends AbstractBaseTool {
       when: { type: 'string', enum: ['BEFORE', 'AFTER', 'INSTEAD OF'], description: 'When to fire' },
       events: { type: 'array', items: { type: 'string' }, description: 'Events' },
       forEach: { type: 'string', enum: ['ROW', 'STATEMENT'], default: 'ROW' },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: true,
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing',
+        default: false,
+      },
       createMigration: { type: 'boolean', default: true },
     },
     required: ['name', 'tableName', 'functionName', 'when', 'events'],
@@ -123,6 +162,8 @@ export class CreateTriggerTool extends AbstractBaseTool {
       when,
       events,
       forEach = 'ROW',
+      executeImmediately = true,
+      previewOnly = false,
       createMigration = true,
     } = args as {
       name: string;
@@ -132,31 +173,47 @@ export class CreateTriggerTool extends AbstractBaseTool {
       when: string;
       events: string[];
       forEach?: string;
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
       createMigration?: boolean;
     };
 
     this.validateRequiredArgs(args, ['name', 'tableName', 'functionName', 'when', 'events']);
 
-         try {
-       const postgresService = new PostgresService(config.postgres);
-       const sqlGenerator = SqlGenerator.getInstance();
+        try {
+      const sqlGenerator = SqlGenerator.getInstance();
 
-              const sql = sqlGenerator.generateCreateTriggerSql(
-         name,
-         tableName,
-         functionName,
-         when,
-         events,
-         forEach,
-         undefined,
-         schema,
-       );
+      const sql = sqlGenerator.generateCreateTriggerSql(
+        name,
+        tableName,
+        functionName,
+        when,
+        events,
+        forEach,
+        undefined,
+        schema,
+      );
 
-      const result = await postgresService.execute(sql);
-      if (!result.success) {
-        return this.createErrorResult(`Failed to create trigger: ${result.error}`);
+      // Preview mode - show what would happen
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { preview, sql });
       }
 
+      let executed = false;
+      let executionResult = null;
+
+      // Execute if requested
+      if (executeImmediately) {
+        const result = await this.executeSQL(sql);
+        if (!result.success) {
+          return this.createErrorResult(`Execution failed: ${result.error}`);
+        }
+        executed = true;
+        executionResult = result;
+      }
+
+      // Create migration if requested
       let migrationResult;
       if (createMigration) {
         migrationResult = await MigrationHelpers.createMigration(
@@ -168,11 +225,12 @@ export class CreateTriggerTool extends AbstractBaseTool {
       }
 
       return this.createSuccessResult(
-        `Trigger ${name} created successfully`,
+        `Trigger ${name} ${executed ? 'created' : 'prepared for creation'}`,
         {
           triggerName: name,
           tableName,
           schema,
+          executed,
           sql,
           ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },
@@ -334,6 +392,16 @@ export class AlterTableTool extends AbstractBaseTool {
       schema: { type: 'string', description: 'Database schema', default: 'public' },
       operation: { type: 'string', description: 'ALTER operation (ADD COLUMN, DROP COLUMN, etc.)' },
       details: { type: 'string', description: 'Operation details' },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: true,
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing',
+        default: false,
+      },
       createMigration: { type: 'boolean', default: true },
     },
     required: ['tableName', 'operation', 'details'],
@@ -345,12 +413,16 @@ export class AlterTableTool extends AbstractBaseTool {
       schema = 'public',
       operation,
       details,
+      executeImmediately = true,
+      previewOnly = false,
       createMigration = true,
     } = args as {
       tableName: string;
       schema?: string;
       operation: string;
       details: string;
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
       createMigration?: boolean;
     };
 
@@ -362,16 +434,29 @@ export class AlterTableTool extends AbstractBaseTool {
     }
 
     try {
-      const postgresService = new PostgresService(config.postgres);
       const sqlGenerator = SqlGenerator.getInstance();
-
       const sql = sqlGenerator.generateAlterTableSql(tableName, operation, details, schema);
 
-      const result = await postgresService.execute(sql);
-      if (!result.success) {
-        return this.createErrorResult(`Failed to alter table: ${result.error}`);
+      // Preview mode - show what would happen
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { preview, sql });
       }
 
+      let executed = false;
+      let executionResult = null;
+
+      // Execute if requested
+      if (executeImmediately) {
+        const result = await this.executeSQL(sql);
+        if (!result.success) {
+          return this.createErrorResult(`Execution failed: ${result.error}`);
+        }
+        executed = true;
+        executionResult = result;
+      }
+
+      // Create migration if requested
       let migrationResult;
       if (createMigration) {
         migrationResult = await MigrationHelpers.createMigration(
@@ -383,12 +468,13 @@ export class AlterTableTool extends AbstractBaseTool {
       }
 
       return this.createSuccessResult(
-        `Table ${schema}.${tableName} altered successfully`,
+        `Table ${schema}.${tableName} ${executed ? 'altered' : 'prepared for alteration'}`,
         {
           tableName,
           schema,
           operation,
           details,
+          executed,
           sql,
           ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },
