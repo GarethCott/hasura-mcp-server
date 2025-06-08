@@ -185,4 +185,30 @@ export interface ExecutionResult extends ToolResult {
   rowsAffected?: number;
   executionTime?: number;
   migrationCreated?: string;
+}
+
+// Enhanced execution options for live execution
+export interface ExecutionOptions {
+  executeImmediately?: boolean;
+  previewOnly?: boolean;
+  createMigration?: boolean;
+}
+
+// Change preview interface
+export interface ChangePreview {
+  sql: string;
+  affectedTables: string[];
+  estimatedImpact: string;
+  warnings: string[];
+  executionPlan?: unknown;
+}
+
+// Enhanced tool execution result
+export interface ToolExecutionResult extends ToolResult {
+  executed: boolean;
+  migrationCreated: boolean;
+  sql: string;
+  migrationName?: string;
+  preview?: ChangePreview;
+  executionTime?: number;
 } 

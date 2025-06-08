@@ -196,7 +196,21 @@ export class CreateIndexTool extends AbstractBaseTool {
       unique: { type: 'boolean', description: 'Whether index should be unique', default: false },
       type: { type: 'string', description: 'Index type (btree, hash, gin, gist)' },
       where: { type: 'string', description: 'WHERE clause for partial index' },
-      createMigration: { type: 'boolean', default: true },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: true,  // PostgreSQL tools default to immediate execution
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing or creating migration',
+        default: false,
+      },
+      createMigration: { 
+        type: 'boolean', 
+        description: 'Create migration file', 
+        default: true,
+      },
     },
     required: ['tableName', 'indexName', 'columns'],
   } as const;
@@ -210,6 +224,8 @@ export class CreateIndexTool extends AbstractBaseTool {
       unique = false,
       type,
       where,
+      executeImmediately = true,
+      previewOnly = false,
       createMigration = true,
     } = args as {
       tableName: string;
@@ -219,6 +235,8 @@ export class CreateIndexTool extends AbstractBaseTool {
       unique?: boolean;
       type?: string;
       where?: string;
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
       createMigration?: boolean;
     };
 
@@ -247,11 +265,35 @@ export class CreateIndexTool extends AbstractBaseTool {
         schema,
       );
 
-      const result = await postgresService.execute(sql);
-      if (!result.success) {
-        return this.createErrorResult(`Failed to create index: ${result.error}`);
+      // Validate generated SQL
+      const sqlValidation = await this.validateSQL(sql);
+      if (!sqlValidation.isValid) {
+        return this.createErrorResult(`Generated SQL is invalid: ${sqlValidation.errors.join(', ')}`);
       }
 
+      // Preview mode - return preview without executing
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { 
+          preview, 
+          sql,
+          indexName,
+          tableName,
+          schema,
+        });
+      }
+
+      // Execute on database if requested
+      let executed = false;
+      if (executeImmediately) {
+        const result = await postgresService.execute(sql);
+        if (!result.success) {
+          return this.createErrorResult(`Failed to create index: ${result.error}`);
+        }
+        executed = true;
+      }
+
+      // Create migration file if requested
       let migrationResult;
       if (createMigration) {
         migrationResult = await MigrationHelpers.createMigration(
@@ -263,13 +305,15 @@ export class CreateIndexTool extends AbstractBaseTool {
       }
 
       return this.createSuccessResult(
-        `Index ${indexName} created successfully on table ${schema}.${tableName}`,
+        `Index ${indexName} ${executed ? 'created and executed' : 'migration created'} for table ${schema}.${tableName}`,
         {
           indexName,
           tableName,
           schema,
           columns,
           unique,
+          executed,
+          migrationCreated: !!migrationResult,
           sql,
           ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },

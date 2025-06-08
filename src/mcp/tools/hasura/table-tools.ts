@@ -31,12 +31,41 @@ export class CreateTableTool extends AbstractBaseTool {
           required: ['name', 'type'],
         },
       },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: false,
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing or creating migration',
+        default: false,
+      },
+      createMigration: { 
+        type: 'boolean', 
+        description: 'Create migration file', 
+        default: true,
+      },
     },
     required: ['name', 'columns'],
   } as const;
 
   protected async executeImpl(args: Record<string, unknown>): Promise<ToolResult> {
-    const { name, schema = 'public', columns } = args as { name: string; schema?: string; columns: HasuraTableArgs['columns'] };
+    const { 
+      name, 
+      schema = 'public', 
+      columns,
+      executeImmediately = false,
+      previewOnly = false,
+      createMigration = true,
+    } = args as { 
+      name: string; 
+      schema?: string; 
+      columns: HasuraTableArgs['columns'];
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
+      createMigration?: boolean;
+    };
 
     // Validate required arguments
     this.validateRequiredArgs(args, ['name', 'columns']);
@@ -89,42 +118,73 @@ export class CreateTableTool extends AbstractBaseTool {
       const sql = sqlGenerator.generateCreateTableSql(tableDefinition);
 
       // Validate generated SQL
-      const sqlValidation = ValidationUtils.validateSql(sql);
+      const sqlValidation = await this.validateSQL(sql);
       if (!sqlValidation.isValid) {
         return this.createErrorResult(`Generated SQL is invalid: ${sqlValidation.errors.join(', ')}`);
       }
 
-      // Create migration
-      const migrationResult = await MigrationHelpers.createMigration(
-        'create_table',
-        name,
-        sql,
-        sqlGenerator.generateDropTableSql(name, schema),
-      );
-
-      if (!migrationResult.success) {
-        return this.createErrorResult(`Failed to create migration: ${migrationResult.error}`);
+      // Preview mode - return preview without executing
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { 
+          preview, 
+          sql,
+          tableName: name,
+          schema,
+        });
       }
 
-      // Create Hasura metadata
-      const metadata = {
-        table: { name, schema },
-        configuration: {
-          custom_root_fields: {},
-          custom_column_names: {},
-        },
-      };
+      // Execute on database if requested
+      let executed = false;
+      if (executeImmediately) {
+        const execution = await this.executeSQL(sql);
+        if (!execution.success) {
+          return this.createErrorResult(`Database execution failed: ${execution.error}`);
+        }
+        executed = true;
+      }
 
-      await hasuraService.updateTableMetadata(name, schema, metadata);
+      // Create migration file if requested
+      let migrationResult;
+      if (createMigration) {
+        migrationResult = await MigrationHelpers.createMigration(
+          'create_table',
+          name,
+          sql,
+          sqlGenerator.generateDropTableSql(name, schema),
+        );
+
+        if (!migrationResult.success) {
+          return this.createErrorResult(`Failed to create migration: ${migrationResult.error}`);
+        }
+      }
+
+      // Create metadata if migration was created (Hasura integration)
+      let metadataUpdated = false;
+      if (createMigration) {
+        const metadata = {
+          table: { name, schema },
+          configuration: {
+            custom_root_fields: {},
+            custom_column_names: {},
+          },
+        };
+
+        await hasuraService.updateTableMetadata(name, schema, metadata);
+        metadataUpdated = true;
+      }
 
       return this.createSuccessResult(
-        `Table ${schema}.${name} created successfully`,
+        `Table ${schema}.${name} ${executed ? 'created and executed' : 'migration created'} successfully`,
         {
           tableName: name,
           schema,
-          migrationName: migrationResult.migrationName,
+          executed,
+          migrationCreated: !!migrationResult,
+          metadataUpdated,
           sql,
           columns: tableDefinition.columns,
+          ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },
       );
     } catch (error) {
@@ -151,12 +211,41 @@ export class AddColumnTool extends AbstractBaseTool {
         },
         required: ['name', 'type'],
       },
+      executeImmediately: { 
+        type: 'boolean', 
+        description: 'Execute SQL immediately on database', 
+        default: false,
+      },
+      previewOnly: {
+        type: 'boolean',
+        description: 'Preview changes without executing or creating migration',
+        default: false,
+      },
+      createMigration: { 
+        type: 'boolean', 
+        description: 'Create migration file', 
+        default: true,
+      },
     },
     required: ['tableName', 'column'],
   } as const;
 
   protected async executeImpl(args: Record<string, unknown>): Promise<ToolResult> {
-    const { tableName, schema = 'public', column } = args as { tableName: string; schema?: string; column: HasuraTableArgs['columns'][0] };
+    const { 
+      tableName, 
+      schema = 'public', 
+      column,
+      executeImmediately = false,
+      previewOnly = false,
+      createMigration = true,
+    } = args as { 
+      tableName: string; 
+      schema?: string; 
+      column: HasuraTableArgs['columns'][0];
+      executeImmediately?: boolean;
+      previewOnly?: boolean;
+      createMigration?: boolean;
+    };
 
     // Validate required arguments
     this.validateRequiredArgs(args, ['tableName', 'column']);
@@ -192,31 +281,58 @@ export class AddColumnTool extends AbstractBaseTool {
       }, schema);
 
       // Validate generated SQL
-      const sqlValidation = ValidationUtils.validateSql(sql);
+      const sqlValidation = await this.validateSQL(sql);
       if (!sqlValidation.isValid) {
         return this.createErrorResult(`Generated SQL is invalid: ${sqlValidation.errors.join(', ')}`);
       }
 
-      // Create migration
-      const migrationResult = await MigrationHelpers.createMigration(
-        'add_column',
-        `${tableName}_${column.name}`,
-        sql,
-        sqlGenerator.generateDropColumnSql(tableName, column.name, schema),
-      );
+      // Preview mode - return preview without executing
+      if (previewOnly) {
+        const preview = await this.previewChanges(sql);
+        return this.createSuccessResult('Preview generated', { 
+          preview, 
+          sql,
+          tableName,
+          schema,
+          columnName: column.name,
+        });
+      }
 
-      if (!migrationResult.success) {
-        return this.createErrorResult(`Failed to create migration: ${migrationResult.error}`);
+      // Execute on database if requested
+      let executed = false;
+      if (executeImmediately) {
+        const execution = await this.executeSQL(sql);
+        if (!execution.success) {
+          return this.createErrorResult(`Database execution failed: ${execution.error}`);
+        }
+        executed = true;
+      }
+
+      // Create migration file if requested
+      let migrationResult;
+      if (createMigration) {
+        migrationResult = await MigrationHelpers.createMigration(
+          'add_column',
+          `${tableName}_${column.name}`,
+          sql,
+          sqlGenerator.generateDropColumnSql(tableName, column.name, schema),
+        );
+
+        if (!migrationResult.success) {
+          return this.createErrorResult(`Failed to create migration: ${migrationResult.error}`);
+        }
       }
 
       return this.createSuccessResult(
-        `Column ${column.name} added to table ${schema}.${tableName} successfully`,
+        `Column ${column.name} ${executed ? 'added and executed' : 'migration created'} for table ${schema}.${tableName} successfully`,
         {
           tableName,
           schema,
           columnName: column.name,
-          migrationName: migrationResult.migrationName,
+          executed,
+          migrationCreated: !!migrationResult,
           sql,
+          ...(migrationResult && { migrationName: migrationResult.migrationName }),
         },
       );
     } catch (error) {

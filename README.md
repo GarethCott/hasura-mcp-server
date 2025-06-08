@@ -2,6 +2,14 @@
 
 A comprehensive Model Context Protocol (MCP) server that enables AI assistants to automatically generate Hasura migrations, manage metadata, and execute PostgreSQL operations directly from natural language descriptions.
 
+## ✨ Key Features
+
+🚀 **Live Execution Modes**: Choose between safe migration-only, immediate execution, or preview-only modes  
+🔄 **Unified Workflows**: Seamlessly coordinate Hasura migrations with PostgreSQL operations  
+🛡️ **Safety First**: Built-in SQL validation, transaction safety, and rollback capabilities  
+📊 **Real-time Analysis**: Live schema analysis and performance optimization suggestions  
+🎯 **Production Ready**: 31 database tools with flexible execution options  
+
 ## 🏗️ Architecture
 
 This MCP server follows a modular architecture with clear separation of concerns:
@@ -26,6 +34,14 @@ src/
 
 ## 🚀 Features
 
+### 🎛️ Three Execution Modes
+
+All enhanced tools support flexible execution modes:
+
+1. **Preview Mode** (`previewOnly: true`) - Analyze SQL and show impact without making changes
+2. **Migration-Only Mode** (`executeImmediately: false`) - Create migration files only (safe default for Hasura tools)
+3. **Live Execution Mode** (`executeImmediately: true`) - Execute SQL immediately AND create migrations (default for PostgreSQL tools)
+
 ### Resources
 Expose both Hasura project and live PostgreSQL data to AI assistants:
 
@@ -41,18 +57,20 @@ Expose both Hasura project and live PostgreSQL data to AI assistants:
 - **postgres://performance** - Live performance analysis and optimization suggestions
 - **postgres://connection-status** - Current PostgreSQL connection status and configuration
 
-### Tools
-Enable AI assistants to perform unified Hasura + PostgreSQL operations:
+### Tools (31 Total)
 
-**Core Hasura Tools:**
-- **create_table** - Create new tables with columns and constraints
-- **add_column** - Add columns to existing tables
+**Enhanced Hasura Tools (8 total, 2 enhanced):**
+- **create_table** ✨ - Create tables with flexible execution modes
+- **add_column** ✨ - Add columns with live execution options
 - **create_relationship** - Define relationships between tables
 - **set_permissions** - Configure role-based permissions
 - **generate_migration** - Create custom migration files
 - **apply_migrations** - Apply pending migrations and metadata to Hasura instance
+- **remove_column** - Remove columns from tables
+- **drop_table** - Drop tables safely
 
-**Enhanced PostgreSQL Tools:**
+**Enhanced PostgreSQL Tools (23 total, 1 enhanced):**
+- **create_index** ✨ - Create indexes with execution control
 - **execute_sql** - Execute SQL directly against PostgreSQL with optional migration creation
 - **validate_sql** - Validate SQL syntax and safety before execution
 - **analyze_schema** - Analyze database schema for optimization opportunities
@@ -61,6 +79,20 @@ Enable AI assistants to perform unified Hasura + PostgreSQL operations:
 - **rollback_migration** - Rollback a migration from both database and files
 - **sync_schema** - Synchronize database schema with Hasura metadata
 - **optimize_database** - Apply optimization suggestions to improve performance
+- **list_tables** - List all tables in the database
+- **describe_table** - Get detailed table structure
+- **list_indexes** - List all indexes
+- **analyze_performance** - Analyze query performance
+- **backup_schema** - Create schema backups
+- **restore_schema** - Restore from backups
+- **create_view** - Create database views
+- **drop_view** - Drop database views
+- **create_function** - Create PostgreSQL functions
+- **drop_function** - Drop PostgreSQL functions
+- **create_trigger** - Create database triggers
+- **drop_trigger** - Drop database triggers
+- **vacuum_analyze** - Optimize database performance
+- **check_constraints** - Validate database constraints
 
 ### Prompts
 AI-assisted schema generation and optimization:
@@ -155,9 +187,9 @@ Use the generate_schema prompt with:
 - domain: "blog"
 ```
 
-#### 2. Create Table with Live Execution
+#### 2. Create Table with Live Execution (Enhanced)
 ```
-Use the create_table_live tool with:
+Use the create_table tool with flexible execution:
 {
   "name": "users",
   "columns": [
@@ -166,31 +198,73 @@ Use the create_table_live tool with:
     {"name": "name", "type": "text", "constraints": "NOT NULL"},
     {"name": "created_at", "type": "timestamptz", "constraints": "DEFAULT now()"}
   ],
-  "executeImmediately": true
+  "executeImmediately": true,    // Execute SQL immediately
+  "previewOnly": false,          // Actually make changes
+  "createMigration": true        // Also create migration file
 }
 ```
 
-This creates the table in PostgreSQL AND generates the Hasura migration file!
+#### 3. Preview Changes Before Execution
+```
+Use the create_table tool in preview mode:
+{
+  "name": "posts",
+  "columns": [
+    {"name": "id", "type": "uuid", "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"},
+    {"name": "title", "type": "text", "constraints": "NOT NULL"},
+    {"name": "content", "type": "text"}
+  ],
+  "previewOnly": true           // Just show what would happen
+}
+```
 
-#### 3. Execute SQL with Migration
+#### 4. Safe Migration-Only Mode
+```
+Use the add_column tool in safe mode:
+{
+  "tableName": "users",
+  "column": {
+    "name": "last_login",
+    "type": "timestamptz",
+    "constraints": "DEFAULT now()"
+  },
+  "executeImmediately": false,  // Only create migration file
+  "createMigration": true       // Safe for production workflows
+}
+```
+
+#### 5. Create Index with Live Execution
+```
+Use the create_index tool (PostgreSQL default: immediate execution):
+{
+  "tableName": "users",
+  "indexName": "idx_users_email",
+  "columns": ["email"],
+  "unique": true,
+  "executeImmediately": true,   // Default for PostgreSQL tools
+  "createMigration": true
+}
+```
+
+#### 6. Execute SQL with Migration
 ```
 Use the execute_sql tool with:
 {
-  "sql": "ALTER TABLE users ADD COLUMN last_login timestamptz",
+  "sql": "ALTER TABLE users ADD COLUMN profile_image_url text",
   "createMigration": true,
-  "migrationName": "add_last_login_column"
+  "migrationName": "add_profile_image_url"
 }
 ```
 
-#### 4. Validate Before Executing
+#### 7. Validate Before Executing
 ```
 Use the validate_sql tool to check SQL safety:
 {
-  "sql": "CREATE INDEX idx_users_email ON users(email)"
+  "sql": "CREATE INDEX CONCURRENTLY idx_posts_created_at ON posts(created_at)"
 }
 ```
 
-#### 5. Analyze Performance
+#### 8. Analyze Performance
 ```
 Use the analyze_schema tool to get optimization suggestions:
 {
@@ -198,7 +272,7 @@ Use the analyze_schema tool to get optimization suggestions:
 }
 ```
 
-#### 6. Apply Changes to Hasura
+#### 9. Apply Changes to Hasura
 ```
 Use the apply_migrations tool to push all changes live:
 {
@@ -207,6 +281,19 @@ Use the apply_migrations tool to push all changes live:
 ```
 
 This will automatically run `hasura migrate apply` and `hasura metadata apply` for you!
+
+## 🎯 Current Status
+
+**Production Ready**: 31 database tools with live execution capabilities
+- ✅ **3 Enhanced Tools**: `create_table`, `add_column`, `create_index` with flexible execution modes
+- ✅ **Pattern Established**: Clear architecture for enhancing remaining tools
+- ✅ **Safety Features**: Preview mode, validation, transaction safety
+- ✅ **Unified Workflows**: Seamless Hasura + PostgreSQL coordination
+- ✅ **Build Status**: Compiles successfully, core functionality tested
+
+**Next Enhancement Targets**:
+- `drop_table`, `remove_column`, `create_relationship` (Hasura tools)
+- `execute_sql`, `create_view`, `create_function` (PostgreSQL tools)
 
 ## 🧩 Module Details
 

@@ -1,6 +1,11 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { BaseTool, ToolResult, ToolContext } from './tool-types.js';
+import { BaseTool, ToolResult, ToolContext, ExecutionOptions, ChangePreview } from './tool-types.js';
 import { logger } from '../../../utils/index.js';
+import { ValidationUtils } from '../utils/validation.js';
+import { PostgresService } from '../../../services/postgres-service.js';
+import { IntegrationService } from '../../../services/integration-service.js';
+import { hasuraService } from '../../../services/index.js';
+import { config } from '../../../config/index.js';
 
 export abstract class AbstractBaseTool implements BaseTool {
   public abstract readonly name: string;
@@ -69,6 +74,54 @@ export abstract class AbstractBaseTool implements BaseTool {
   }
 
   protected abstract executeImpl(args: Record<string, unknown>): Promise<ToolResult>;
+
+  // Common execution methods for enhanced tools
+  protected async validateSQL(sql: string): Promise<{ isValid: boolean; errors: string[] }> {
+    try {
+      const validation = ValidationUtils.validateSql(sql);
+      return validation;
+    } catch (error) {
+      return {
+        isValid: false,
+        errors: [error instanceof Error ? error.message : 'SQL validation failed'],
+      };
+    }
+  }
+
+  protected async previewChanges(sql: string): Promise<ChangePreview> {
+    try {
+      const postgresService = new PostgresService(config.postgres);
+      const integrationService = new IntegrationService(hasuraService, postgresService);
+      return await integrationService.previewChanges(sql);
+    } catch (error) {
+      return {
+        sql,
+        affectedTables: [],
+        estimatedImpact: 'Unknown',
+        warnings: [error instanceof Error ? error.message : 'Preview failed'],
+      };
+    }
+  }
+
+  protected async executeSQL(sql: string): Promise<{ success: boolean; error?: string; rowsAffected?: number }> {
+    try {
+      const postgresService = new PostgresService(config.postgres);
+      return await postgresService.execute(sql);
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'SQL execution failed',
+      };
+    }
+  }
+
+  protected extractExecutionOptions(args: Record<string, unknown>): ExecutionOptions {
+    return {
+      executeImmediately: args.executeImmediately as boolean ?? false,
+      previewOnly: args.previewOnly as boolean ?? false,
+      createMigration: args.createMigration as boolean ?? true,
+    };
+  }
 
   // Utility method to get Tool definition for MCP
   public getToolDefinition(): Tool {
